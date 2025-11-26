@@ -428,7 +428,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Floating Save Bar */}
-        <div className="fixed bottom-0 right-0 left-0 md:left-72 p-4 bg-white/80 backdrop-blur-md border-t border-gray-200 flex justify-end z-20">
+        <div className="fixed bottom-20 md:bottom-0 right-0 left-0 md:left-72 p-4 bg-white/80 backdrop-blur-md border-t border-gray-200 flex justify-end z-40 transition-all">
           <button
             type="submit"
             disabled={saving}
