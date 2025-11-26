@@ -16,13 +16,34 @@ export const metadata = {
 };
 
 export default async function RootLayout({ children }) {
-  // Fetch user session server-side to pass to Navbar
+  // Fetch user session AND database profile to get the Role
   let user = null;
+
   try {
-    const { account } = await createSessionClient();
-    user = await account.get();
+    const { account, databases } = await createSessionClient();
+    const sessionUser = await account.get();
+
+    // Fetch the detailed profile from DB to know if client/therapist/admin
+    // We wrap this in a sub-try in case the DB document hasn't been created yet
+    try {
+      const profile = await databases.getDocument(
+        "therapy_connect_db",
+        "users",
+        sessionUser.$id
+      );
+      // Merge auth data with profile data
+      user = {
+        ...sessionUser,
+        role: profile.role,
+        full_name: profile.full_name,
+      };
+    } catch (dbError) {
+      // Fallback: If DB fetch fails, assume client or incomplete setup
+      user = { ...sessionUser, role: "client" };
+    }
   } catch (error) {
-    // User is not logged in, leave user as null
+    // User is not logged in
+    user = null;
   }
 
   return (

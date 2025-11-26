@@ -5,8 +5,8 @@ import { ID } from "node-appwrite";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-const DB_ID = "therapy_connect_db";
-const USERS_COLLECTION_ID = "users";
+const DB_ID = process.env.NEXT_PUBLIC_DB_ID;
+const USERS_COLLECTION_ID = process.env.NEXT_PUBLIC_USERS_COLLECTION_ID;
 
 export async function signup(formData) {
   const rawEmail = formData.get("email");

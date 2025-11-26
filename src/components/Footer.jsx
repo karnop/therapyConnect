@@ -1,9 +1,20 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Instagram, Twitter, Linkedin } from "lucide-react";
 
 export default function Footer() {
+  const pathname = usePathname();
+  // Check if we are inside the therapist dashboard routes
+  const isTherapistRoute = pathname?.startsWith("/therapist");
+
   return (
-    <footer className="bg-gray-50 border-t border-gray-200 pt-16 pb-8 mt-20">
+    <footer
+      className={`bg-gray-50 border-t border-gray-200 pt-16 pb-8 mt-20 transition-all duration-300 ${
+        isTherapistRoute ? "md:ml-72" : ""
+      }`}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
           {/* Brand Column */}

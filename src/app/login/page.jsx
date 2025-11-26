@@ -106,7 +106,7 @@ export default function LoginPage() {
 
           <div className="mt-8 text-center">
             <p className="text-gray-500">
-              Don't have an account?{" "}
+              Don&quot;t have an account?{" "}
               <Link
                 href="/signup"
                 className="text-secondary font-semibold hover:underline"
@@ -135,9 +135,9 @@ export default function LoginPage() {
             Find your safe space.
           </h2>
           <p className="text-gray-600 text-lg leading-relaxed">
-            "TherapyConnect made it so easy to find someone who actually
+            &quot;TherapyConnect made it so easy to find someone who actually
             understood my culture and background. It felt like talking to a
-            friend."
+            friend.&quot;
           </p>
         </div>
       </div>

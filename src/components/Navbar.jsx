@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import React, { useState } from "react";
-import { User, LogOut, Menu, X } from "lucide-react";
+import { User, LogOut, Menu, X, LayoutDashboard } from "lucide-react";
 import { logout } from "@/actions/auth";
 
 const Navbar = ({ user }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const role = user?.role || "client"; // 'client', 'therapist', 'admin'
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -16,6 +18,16 @@ const Navbar = ({ user }) => {
     await logout();
     setIsMenuOpen(false);
   };
+
+  // --- ROLE BASED LINKS ---
+
+  // Where should the User Icon click go?
+  const profileLink =
+    role === "therapist" ? "/therapist/settings" : "/dashboard";
+
+  // Where should the "Dashboard" text button go?
+  const dashboardLink =
+    role === "therapist" ? "/therapist/dashboard" : "/dashboard";
 
   return (
     <nav className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-gray-100 transition-all duration-300">
@@ -41,12 +53,17 @@ const Navbar = ({ user }) => {
             >
               Find a Therapist
             </Link>
-            <Link
-              href="/for-therapists"
-              className="text-sm font-medium text-primary hover:text-secondary transition-colors"
-            >
-              For Therapists
-            </Link>
+
+            {/* Hide "For Therapists" if user is already a therapist */}
+            {role !== "therapist" && (
+              <Link
+                href="/for-therapists"
+                className="text-sm font-medium text-primary hover:text-secondary transition-colors"
+              >
+                For Therapists
+              </Link>
+            )}
+
             <Link
               href="/about"
               className="text-sm font-medium text-primary hover:text-secondary transition-colors"
@@ -60,7 +77,11 @@ const Navbar = ({ user }) => {
             {/* Auth Button (Always visible) */}
             {user ? (
               <div className="flex items-center gap-4">
-                <Link href="/dashboard">
+                {/* Dynamic Icon Link:
+                   - Therapists -> Settings
+                   - Clients -> Dashboard 
+                */}
+                <Link href={profileLink}>
                   <button className="bg-primary text-white rounded-full p-2 hover:bg-gray-800 hover:shadow-md transition-all">
                     <User size={20} />
                   </button>
@@ -104,13 +125,17 @@ const Navbar = ({ user }) => {
             >
               Find a Therapist
             </Link>
-            <Link
-              href="/for-therapists"
-              onClick={() => setIsMenuOpen(false)}
-              className="text-lg font-medium text-primary hover:text-secondary"
-            >
-              For Therapists
-            </Link>
+
+            {role !== "therapist" && (
+              <Link
+                href="/for-therapists"
+                onClick={() => setIsMenuOpen(false)}
+                className="text-lg font-medium text-primary hover:text-secondary"
+              >
+                For Therapists
+              </Link>
+            )}
+
             <Link
               href="/about"
               onClick={() => setIsMenuOpen(false)}
@@ -121,9 +146,12 @@ const Navbar = ({ user }) => {
 
             {user ? (
               <div className="flex flex-col gap-4 w-full px-4 pt-2">
-                <Link href="/dashboard" onClick={() => setIsMenuOpen(false)}>
-                  <button className="w-full bg-primary text-white py-3 rounded-xl">
-                    Dashboard
+                <Link href={dashboardLink} onClick={() => setIsMenuOpen(false)}>
+                  <button className="w-full bg-primary text-white py-3 rounded-xl flex items-center justify-center gap-2">
+                    <LayoutDashboard size={18} />
+                    {role === "therapist"
+                      ? "Partner Dashboard"
+                      : "My Dashboard"}
                   </button>
                 </Link>
                 <button
