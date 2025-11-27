@@ -91,7 +91,7 @@ export default async function SessionDetailsPage({ params }) {
                         Journal Note
                       </span>
                       <p className="text-white/90 italic leading-relaxed">
-                        "{booking.client_journal}"
+                        &apos;{booking.client_journal}&apos;
                       </p>
                     </div>
                   )}

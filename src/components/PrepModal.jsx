@@ -81,7 +81,7 @@ export default function PrepModal({ booking, onClose, onSuccess }) {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">
-                What's on your mind? (Journal)
+                What&apos;s on your mind? (Journal)
               </label>
               <textarea
                 value={journal}

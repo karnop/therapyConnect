@@ -104,7 +104,7 @@ export default async function TherapistDashboard() {
                           Journal Note
                         </span>
                         <p className="text-white/90 italic">
-                          "{nextSession.client_journal}"
+                          &apos;{nextSession.client_journal}&apos;
                         </p>
                       </div>
                     )}

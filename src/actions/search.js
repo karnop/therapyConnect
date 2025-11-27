@@ -7,36 +7,49 @@ const DB_ID = "therapy_connect_db";
 const USERS_COLLECTION = "users";
 const RATES_COLLECTION = "service_rates";
 const SLOTS_COLLECTION = "slots";
-const BUCKET_ID = "69272be5003c066e0366"; // Your Images Bucket
+const BUCKET_ID = "69272be5003c066e0366";
 
 export async function getTherapists(filters = {}) {
   const { databases } = await createAdminClient();
-  const { query, specialty, minPrice, maxPrice } = filters;
+  const { query, specialty, minPrice, maxPrice, mode, sort } = filters; // Added 'sort' and 'mode'
 
-  // 1. Fetch ALL Therapists (Role = therapist)
-  // For MVP scale (<100 users), fetching all and filtering in memory is perfectly fine and faster to implement.
+  // 1. Fetch ALL Therapists
   const { documents: therapists } = await databases.listDocuments(
     DB_ID,
     USERS_COLLECTION,
     [Query.equal("role", "therapist"), Query.limit(100)]
   );
 
-  // 2. Enrich & Filter (Parallel Processing)
+  // 2. Enrich & Filter
   const results = await Promise.all(
     therapists.map(async (therapist) => {
-      // --- FILTER: Text Search ---
+      // --- FILTER: Text Search (Name, Bio, OR Specialties) ---
       if (query) {
         const q = query.toLowerCase();
         const name = therapist.full_name?.toLowerCase() || "";
         const bio = therapist.bio?.toLowerCase() || "";
-        // If neither name nor bio matches, skip this therapist
-        if (!name.includes(q) && !bio.includes(q)) return null;
+        const specs = (therapist.specialties || []).map((s) => s.toLowerCase());
+
+        // If query matches NONE of these, skip
+        if (
+          !name.includes(q) &&
+          !bio.includes(q) &&
+          !specs.some((s) => s.includes(q))
+        ) {
+          return null;
+        }
       }
 
-      // --- FILTER: Specialty ---
+      // --- FILTER: Specialty (Dropdown) ---
       if (specialty && specialty !== "All") {
         const specs = therapist.specialties || [];
         if (!specs.includes(specialty)) return null;
+      }
+
+      // --- FILTER: Mode (Online/Offline) ---
+      if (mode && mode !== "all") {
+        if (mode === "online" && !therapist.meeting_link) return null;
+        if (mode === "offline" && !therapist.clinic_address) return null;
       }
 
       // --- FETCH: Price ---
@@ -47,7 +60,7 @@ export async function getTherapists(filters = {}) {
       ]);
       const price = rateDocs.documents[0]?.price_inr || 0;
 
-      // --- FILTER: Price ---
+      // --- FILTER: Price Range ---
       if (minPrice && price < parseInt(minPrice)) return null;
       if (maxPrice && price > parseInt(maxPrice)) return null;
 
@@ -79,6 +92,17 @@ export async function getTherapists(filters = {}) {
     })
   );
 
-  // Remove nulls (filtered out therapists)
-  return results.filter(Boolean);
+  // 3. Filter Nulls
+  let finalResults = results.filter(Boolean);
+
+  // 4. SORTING LOGIC
+  if (sort) {
+    if (sort === "price_asc") {
+      finalResults.sort((a, b) => a.price - b.price);
+    } else if (sort === "price_desc") {
+      finalResults.sort((a, b) => b.price - a.price);
+    }
+  }
+
+  return finalResults;
 }

@@ -137,7 +137,7 @@ export default async function TherapistProfilePage({ params }) {
                 <div className="prose prose-lg prose-gray max-w-none text-gray-600 leading-relaxed whitespace-pre-line">
                   {profile.bio || (
                     <span className="text-gray-400 italic">
-                      This therapist hasn't added a detailed bio yet.
+                      This therapist hasn&apos;t added a detailed bio yet.
                     </span>
                   )}
                 </div>

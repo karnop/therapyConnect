@@ -1,11 +1,15 @@
 import { getTherapists } from "@/actions/search";
 import TherapistCard from "@/components/TherapistCard";
-import { Search as SearchIcon, SlidersHorizontal, MapPin } from "lucide-react";
+import {
+  Search as SearchIcon,
+  SlidersHorizontal,
+  MapPin,
+  Video,
+  ArrowUpDown,
+} from "lucide-react";
 import { SPECIALTIES_LIST } from "@/lib/constants";
 
-// This is a Server Component that receives searchParams directly
 export default async function SearchPage({ searchParams }) {
-  // Fetch data on the server
   const therapists = await getTherapists(searchParams);
 
   return (
@@ -13,8 +17,8 @@ export default async function SearchPage({ searchParams }) {
       {/* Header & Filter Bar */}
       <div className="bg-white border-b border-gray-200 sticky top-20 z-20 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <form className="flex flex-col md:flex-row gap-4">
-            {/* Search Input */}
+          <form className="flex flex-col lg:flex-row gap-4">
+            {/* 1. Search Input */}
             <div className="flex-1 relative">
               <SearchIcon
                 className="absolute left-4 top-3.5 text-gray-400"
@@ -24,18 +28,42 @@ export default async function SearchPage({ searchParams }) {
                 name="query"
                 defaultValue={searchParams.query}
                 type="text"
-                placeholder="Search by name or keyword..."
+                placeholder="Search by name, bio, or concern..."
                 className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all"
               />
             </div>
 
-            {/* Filters */}
-            <div className="flex gap-4 overflow-x-auto pb-2 md:pb-0">
-              <div className="relative min-w-[200px]">
+            {/* Filters Row */}
+            <div className="flex gap-3 overflow-x-auto pb-2 lg:pb-0 scrollbar-hide">
+              {/* 2. Mode Filter */}
+              <div className="relative min-w-[160px]">
+                <div className="absolute left-4 top-3.5 pointer-events-none text-gray-400">
+                  {searchParams.mode === "online" ? (
+                    <Video size={18} />
+                  ) : (
+                    <MapPin size={18} />
+                  )}
+                </div>
+                <select
+                  name="mode"
+                  defaultValue={searchParams.mode || "all"}
+                  className="w-full appearance-none pl-11 pr-8 py-3 rounded-xl border border-gray-200 bg-white hover:border-secondary focus:border-secondary outline-none cursor-pointer text-sm font-medium text-gray-700"
+                >
+                  <option value="all">Any Location</option>
+                  <option value="online">Online Video</option>
+                  <option value="offline">In-Person</option>
+                </select>
+              </div>
+
+              {/* 3. Specialty Filter */}
+              <div className="relative min-w-[180px]">
+                <div className="absolute left-4 top-3.5 pointer-events-none text-gray-400">
+                  <SlidersHorizontal size={18} />
+                </div>
                 <select
                   name="specialty"
                   defaultValue={searchParams.specialty}
-                  className="w-full appearance-none pl-4 pr-10 py-3 rounded-xl border border-gray-200 bg-white hover:border-secondary focus:border-secondary outline-none cursor-pointer"
+                  className="w-full appearance-none pl-11 pr-8 py-3 rounded-xl border border-gray-200 bg-white hover:border-secondary focus:border-secondary outline-none cursor-pointer text-sm font-medium text-gray-700"
                 >
                   <option value="">All Specialties</option>
                   {SPECIALTIES_LIST.map((s) => (
@@ -44,14 +72,28 @@ export default async function SearchPage({ searchParams }) {
                     </option>
                   ))}
                 </select>
-                <div className="absolute right-4 top-3.5 pointer-events-none text-gray-400">
-                  <SlidersHorizontal size={16} />
-                </div>
               </div>
 
+              {/* 4. Sort Filter */}
+              <div className="relative min-w-[160px]">
+                <div className="absolute left-4 top-3.5 pointer-events-none text-gray-400">
+                  <ArrowUpDown size={18} />
+                </div>
+                <select
+                  name="sort"
+                  defaultValue={searchParams.sort}
+                  className="w-full appearance-none pl-11 pr-8 py-3 rounded-xl border border-gray-200 bg-white hover:border-secondary focus:border-secondary outline-none cursor-pointer text-sm font-medium text-gray-700"
+                >
+                  <option value="">Sort by</option>
+                  <option value="price_asc">Price: Low to High</option>
+                  <option value="price_desc">Price: High to Low</option>
+                </select>
+              </div>
+
+              {/* Search Button */}
               <button
                 type="submit"
-                className="bg-secondary hover:bg-[#5A7A66] text-white px-8 py-3 rounded-xl font-medium transition-colors shadow-soft"
+                className="bg-secondary hover:bg-[#5A7A66] text-white px-6 py-3 rounded-xl font-bold transition-colors shadow-soft whitespace-nowrap"
               >
                 Search
               </button>
@@ -67,8 +109,8 @@ export default async function SearchPage({ searchParams }) {
             <h1 className="text-2xl font-bold text-primary">
               Available Therapists
             </h1>
-            <p className="text-gray-500">
-              Showing {therapists.length} professionals in Delhi NCR
+            <p className="text-gray-500 text-sm mt-1">
+              Found {therapists.length} matches based on your preferences
             </p>
           </div>
         </div>

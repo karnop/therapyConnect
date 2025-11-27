@@ -19,8 +19,8 @@ export default function SuccessPage() {
           Booking Confirmed!
         </h1>
         <p className="text-gray-500 mb-10 leading-relaxed text-lg">
-          You're all set. We've sent a confirmation to your email. You can find
-          the session link and details in your dashboard.
+          You&apos;re all set. We&apos;ve sent a confirmation to your email. You
+          can find the session link and details in your dashboard.
         </p>
 
         <div className="space-y-4">

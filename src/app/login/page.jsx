@@ -112,7 +112,7 @@ export default function LoginPage() {
 
           <div className="mt-8 text-center">
             <p className="text-gray-500">
-              Don't have an account?{" "}
+              Don&apos;t have an account?{" "}
               {/* 3. Carry the redirect param to signup page if user switches */}
               <Link
                 href={
@@ -145,9 +145,9 @@ export default function LoginPage() {
             Find your safe space.
           </h2>
           <p className="text-gray-600 text-lg leading-relaxed">
-            "TherapyConnect made it so easy to find someone who actually
+            &apos;TherapyConnect made it so easy to find someone who actually
             understood my culture and background. It felt like talking to a
-            friend."
+            friend.&apos;
           </p>
         </div>
       </div>
