@@ -52,7 +52,7 @@ export default async function RootLayout({ children }) {
         className={`${manrope.variable} font-sans antialiased bg-background text-primary`}
       >
         <Navbar user={user} />
-        <main className="min-h-screen md:pt-20">{children}</main>
+        <main className="min-h-screen pt-20">{children}</main>
         <Footer />
       </body>
     </html>

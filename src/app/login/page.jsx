@@ -4,10 +4,15 @@ import Link from "next/link";
 import { login } from "@/actions/auth";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { useSearchParams } from "next/navigation"; // Import this
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
+
+  // 1. Get Redirect Param
+  const searchParams = useSearchParams();
+  const redirectPath = searchParams.get("redirect");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -19,8 +24,6 @@ export default function LoginPage() {
 
     if (result?.error) {
       setIsLoading(false);
-      // Login errors are usually generic, but we can display them below the fields if we want.
-      // For now, I'll attach it to a generic 'form' key or 'email' if it's credential related.
       setErrors({ form: result.error });
     }
   };
@@ -36,7 +39,6 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex bg-surface">
-      {/* LEFT SIDE: Form */}
       <div className="w-full lg:w-1/2 flex flex-col justify-center px-8 sm:px-12 lg:px-24 py-12">
         <div className="w-full max-w-md mx-auto">
           <div className="mb-10">
@@ -49,6 +51,11 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* 2. Hidden Input to pass redirect path to Server Action */}
+            {redirectPath && (
+              <input type="hidden" name="redirect" value={redirectPath} />
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Email
@@ -75,7 +82,6 @@ export default function LoginPage() {
               />
             </div>
 
-            {/* Error Message displayed here for login */}
             {errors.form && (
               <p className="text-red-500 text-sm font-medium text-center">
                 {errors.form}
@@ -106,9 +112,14 @@ export default function LoginPage() {
 
           <div className="mt-8 text-center">
             <p className="text-gray-500">
-              Don&quot;t have an account?{" "}
+              Don't have an account?{" "}
+              {/* 3. Carry the redirect param to signup page if user switches */}
               <Link
-                href="/signup"
+                href={
+                  redirectPath
+                    ? `/signup?redirect=${encodeURIComponent(redirectPath)}`
+                    : "/signup"
+                }
                 className="text-secondary font-semibold hover:underline"
               >
                 Sign up for free
@@ -118,7 +129,6 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* RIGHT SIDE: Visual */}
       <div className="hidden lg:flex lg:w-1/2 bg-[#F2F4F3] relative items-center justify-center p-12">
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -top-[20%] -right-[10%] w-[600px] h-[600px] bg-[#E8ECEA] rounded-full mix-blend-multiply filter blur-3xl opacity-70"></div>
@@ -135,9 +145,9 @@ export default function LoginPage() {
             Find your safe space.
           </h2>
           <p className="text-gray-600 text-lg leading-relaxed">
-            &quot;TherapyConnect made it so easy to find someone who actually
+            "TherapyConnect made it so easy to find someone who actually
             understood my culture and background. It felt like talking to a
-            friend.&quot;
+            friend."
           </p>
         </div>
       </div>

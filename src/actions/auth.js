@@ -15,6 +15,7 @@ export async function signup(formData) {
   const fullName = formData.get("fullName");
   const phone = formData.get("phone");
 
+  const redirectTo = formData.get("redirect") || "/dashboard";
   const { account, databases } = await createAdminClient();
 
   try {
@@ -42,11 +43,20 @@ export async function signup(formData) {
       is_verified: false,
     });
   } catch (error) {
-    console.log("Signup Error : ", error);
+    console.error("Signup Error:", error);
+    if (
+      error.message.includes("email") ||
+      error.type === "user_invalid_email"
+    ) {
+      return { error: "Invalid email address", field: "email" };
+    }
+    if (error.message.includes("password")) {
+      return { error: error.message, field: "password" };
+    }
     return { error: error.message };
   }
 
-  redirect("/");
+  redirect(redirectTo);
 }
 
 export async function login(formdata) {
@@ -54,6 +64,7 @@ export async function login(formdata) {
   const password = formdata.get("password");
 
   const { account } = await createAdminClient();
+  const redirectTo = formdata.get("redirect") || "/dashboard";
 
   try {
     const session = await account.createEmailPasswordSession(email, password);
@@ -71,7 +82,7 @@ export async function login(formdata) {
     };
   }
 
-  redirect("/dashboard");
+  redirect(redirectTo);
 }
 
 export async function logout() {

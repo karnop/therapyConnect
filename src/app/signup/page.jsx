@@ -4,35 +4,35 @@ import Link from "next/link";
 import { signup } from "@/actions/auth";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false);
-  const [errors, setErrors] = useState({}); // Stores { email: "Error text", password: "Error text" }
+  const [errors, setErrors] = useState({});
+
+  // 1. Get Redirect Param
+  const searchParams = useSearchParams();
+  const redirectPath = searchParams.get("redirect");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    setErrors({}); // Clear previous errors
+    setErrors({});
 
     const formData = new FormData(e.currentTarget);
 
-    // Call server action directly
     const result = await signup(formData);
 
     if (result?.error) {
       setIsLoading(false);
-      // If the server returns a specific field error (e.g. { error: "Bad email", field: "email" })
       if (result.field) {
         setErrors({ [result.field]: result.error });
       } else {
-        // Otherwise show a generic error at the top or attach to a default field
         setErrors({ form: result.error });
       }
     }
-    // If successful, the server action redirects, so we don't need to do anything here
   };
 
-  // Helper to get input classes based on error state
   const getInputClass = (fieldName) => {
     return `w-full px-4 py-3 rounded-xl border outline-none transition-all bg-gray-50 focus:bg-white 
     ${
@@ -44,7 +44,6 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen flex bg-surface">
-      {/* LEFT SIDE: Form */}
       <div className="w-full lg:w-1/2 flex flex-col justify-center px-8 sm:px-12 lg:px-24 py-12">
         <div className="w-full max-w-md mx-auto">
           <div className="mb-8">
@@ -56,7 +55,6 @@ export default function SignupPage() {
             </p>
           </div>
 
-          {/* Generic Form Error */}
           {errors.form && (
             <div className="mb-6 p-3 bg-red-50 border border-red-100 rounded-lg text-red-600 text-sm font-medium">
               {errors.form}
@@ -64,6 +62,11 @@ export default function SignupPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* 2. Hidden Input to pass redirect path */}
+            {redirectPath && (
+              <input type="hidden" name="redirect" value={redirectPath} />
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Full Name
@@ -152,8 +155,13 @@ export default function SignupPage() {
           <div className="mt-8 pt-6 border-t border-gray-100 text-center">
             <p className="text-gray-500 mb-2">
               Already have an account?{" "}
+              {/* 3. Preserve redirect on link click */}
               <Link
-                href="/login"
+                href={
+                  redirectPath
+                    ? `/login?redirect=${encodeURIComponent(redirectPath)}`
+                    : "/login"
+                }
                 className="text-secondary font-semibold hover:underline"
               >
                 Sign in
@@ -172,7 +180,6 @@ export default function SignupPage() {
         </div>
       </div>
 
-      {/* RIGHT SIDE: Visual */}
       <div className="hidden lg:flex lg:w-1/2 bg-secondary/5 relative items-center justify-center p-12">
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute bottom-[10%] right-[10%] w-[400px] h-[400px] bg-[#E09F7D] rounded-full mix-blend-multiply filter blur-[80px] opacity-20"></div>
