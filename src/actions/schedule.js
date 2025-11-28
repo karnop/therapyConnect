@@ -6,15 +6,13 @@ import { revalidatePath } from "next/cache";
 
 const DB_ID = "therapy_connect_db";
 const SLOTS_COLLECTION = "slots";
+const BOOKINGS_COLLECTION = "bookings";
 
 // --- HELPER: CHECK OVERLAP ---
-// Returns true if the new range overlaps with any existing slot
 function isOverlapping(newStart, newEnd, existingSlots) {
   return existingSlots.some((slot) => {
     const existingStart = new Date(slot.start_time);
     const existingEnd = new Date(slot.end_time);
-
-    // Overlap formula: (StartA < EndB) and (EndA > StartB)
     return newStart < existingEnd && newEnd > existingStart;
   });
 }
@@ -29,18 +27,14 @@ export async function createSlot(formData) {
   const time = formData.get("time");
 
   const startDateTime = new Date(`${date}T${time}`);
-  const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000); // +60 mins
+  const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000);
   const now = new Date();
 
-  // VALIDATION 1: Past Check
   if (startDateTime < now) {
     return { error: "Cannot create slots in the past." };
   }
 
   try {
-    // VALIDATION 2: Overlap Check
-    // Fetch slots for this specific day to check overlap
-    // Construct start/end of the day for query
     const dayStart = new Date(startDateTime);
     dayStart.setHours(0, 0, 0, 0);
     const dayEnd = new Date(startDateTime);
@@ -63,7 +57,6 @@ export async function createSlot(formData) {
       return { error: "This time overlaps with an existing slot." };
     }
 
-    // Create if valid
     await databases.createDocument(DB_ID, SLOTS_COLLECTION, ID.unique(), {
       therapist_id: user.$id,
       start_time: startDateTime.toISOString(),
@@ -78,7 +71,7 @@ export async function createSlot(formData) {
   }
 }
 
-// --- 2. BULK GENERATOR (Optimized) ---
+// --- 2. BULK GENERATOR ---
 export async function generateBulkSlots(formData) {
   const user = await (await createSessionClient()).account.get();
   const { databases } = await createAdminClient();
@@ -86,19 +79,11 @@ export async function generateBulkSlots(formData) {
   const startDate = new Date(formData.get("startDate"));
   const endDate = new Date(formData.get("endDate"));
 
-  // VALIDATION 3: 14 Day Limit
   const differenceInTime = endDate.getTime() - startDate.getTime();
   const differenceInDays = differenceInTime / (1000 * 3600 * 24);
 
-  if (differenceInDays > 14) {
-    return {
-      error: "You can only generate slots for up to 14 days at a time.",
-    };
-  }
-
-  if (endDate < startDate) {
-    return { error: "End date must be after start date." };
-  }
+  if (differenceInDays > 14) return { error: "Limit is 14 days." };
+  if (endDate < startDate) return { error: "End date error." };
 
   const startTimeStr = formData.get("startTime");
   const endTimeStr = formData.get("endTime");
@@ -107,9 +92,6 @@ export async function generateBulkSlots(formData) {
   const [startHour, startMin] = startTimeStr.split(":").map(Number);
   const [endHour, endMin] = endTimeStr.split(":").map(Number);
 
-  // OPTIMIZATION: Fetch ALL existing slots in this date range ONCE
-  // This prevents making 1 database read call for every single hour we try to generate.
-  // We construct a query to get slots between bulk start and bulk end.
   const existingSlotsInRange = await databases.listDocuments(
     DB_ID,
     SLOTS_COLLECTION,
@@ -120,34 +102,28 @@ export async function generateBulkSlots(formData) {
         startDate.toISOString(),
         endDate.toISOString()
       ),
-      Query.limit(1000), // Assume max slots in 2 weeks won't exceed 1000
+      Query.limit(1000),
     ]
   );
 
   const slotsToCreate = [];
   const now = new Date();
 
-  // Loop logic (Memory only - very fast)
   for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
     if (selectedDays.includes(d.getDay())) {
       let currentSlotTime = new Date(d);
       currentSlotTime.setHours(startHour, startMin, 0, 0);
-
       const dayEndTime = new Date(d);
       dayEndTime.setHours(endHour, endMin, 0, 0);
 
       while (currentSlotTime < dayEndTime) {
         const slotEnd = new Date(currentSlotTime.getTime() + 60 * 60 * 1000);
-
-        // Check 1: Is it in the past?
         if (currentSlotTime > now) {
-          // Check 2: Does it overlap? (Local check against fetched list)
           const hasOverlap = isOverlapping(
             currentSlotTime,
             slotEnd,
             existingSlotsInRange.documents
           );
-
           if (!hasOverlap) {
             slotsToCreate.push({
               therapist_id: user.$id,
@@ -157,38 +133,45 @@ export async function generateBulkSlots(formData) {
             });
           }
         }
-        // Move to next hour
         currentSlotTime = slotEnd;
       }
     }
   }
 
-  // Batch Create
-  // Appwrite doesn't have a true batch API, but running Promise.all on pre-validated data
-  // is much faster than checking every single one sequentially.
   try {
     const createPromises = slotsToCreate.map((data) =>
       databases.createDocument(DB_ID, SLOTS_COLLECTION, ID.unique(), data)
     );
-
     await Promise.all(createPromises);
-
     revalidatePath("/therapist/schedule");
     return { success: true, count: slotsToCreate.length };
   } catch (error) {
-    console.error("Bulk Error:", error);
     return { error: "Failed to generate some slots." };
   }
 }
 
-// --- 3. FETCH & DELETE ---
+// --- 3. FETCH & DELETE (UPDATED) ---
+
 export async function deleteSlot(slotId) {
   const { databases } = await createAdminClient();
   try {
+    // SAFETY GUARD: Check if booked before deleting
+    const slot = await databases.getDocument(DB_ID, SLOTS_COLLECTION, slotId);
+
+    if (slot.is_booked) {
+      // Cannot delete booked slots via this simple button
+      // Ideally, we'd throw an error that the frontend catches
+      throw new Error(
+        "Cannot delete a booked slot. Please cancel the booking instead."
+      );
+    }
+
     await databases.deleteDocument(DB_ID, SLOTS_COLLECTION, slotId);
     revalidatePath("/therapist/schedule");
+    return { success: true };
   } catch (error) {
     console.error(error);
+    return { error: error.message };
   }
 }
 
@@ -196,11 +179,49 @@ export async function getMySlots() {
   const user = await (await createSessionClient()).account.get();
   const { databases } = await createAdminClient();
 
+  // 1. Fetch Slots
   const slots = await databases.listDocuments(DB_ID, SLOTS_COLLECTION, [
     Query.equal("therapist_id", user.$id),
     Query.orderAsc("start_time"),
     Query.limit(1000),
   ]);
 
-  return slots.documents;
+  // 2. Fetch Active Bookings (to enrich slots with status)
+  // We get bookings from now onwards to match slots
+  const now = new Date().toISOString();
+  const bookings = await databases.listDocuments(DB_ID, BOOKINGS_COLLECTION, [
+    Query.equal("therapist_id", user.$id),
+    Query.greaterThanEqual("start_time", now),
+    Query.limit(1000),
+  ]);
+
+  // 3. Merge: Map slot time to booking status
+  // Key = start_time ISO string, Value = Booking Doc
+  const bookingMap = {};
+  bookings.documents.forEach((b) => {
+    bookingMap[b.start_time] = b;
+  });
+
+  // 4. Return enriched slots
+  return slots.documents.map((slot) => {
+    const matchingBooking = bookingMap[slot.start_time];
+
+    // Determine Status
+    let status = "available"; // default
+    let bookingId = null;
+    let clientName = null;
+
+    if (slot.is_booked && matchingBooking) {
+      status = matchingBooking.status; // pending_approval, confirmed, etc.
+      bookingId = matchingBooking.$id;
+      // Note: client name isn't fetched here to save calls,
+      // but we could if we did a join. For schedule grid, status color is enough.
+    }
+
+    return {
+      ...slot,
+      status, // 'available', 'pending_approval', 'confirmed', etc.
+      bookingId,
+    };
+  });
 }

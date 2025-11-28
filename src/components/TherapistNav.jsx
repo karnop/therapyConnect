@@ -2,13 +2,22 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Calendar, Settings, Sparkles } from "lucide-react";
+import {
+  LayoutDashboard,
+  Calendar,
+  Settings,
+  Sparkles,
+  Inbox,
+  Users,
+} from "lucide-react";
 
 export default function TherapistNav({ user }) {
   const pathname = usePathname();
 
   const navItems = [
     { name: "Overview", href: "/therapist/dashboard", icon: LayoutDashboard },
+    { name: "Requests", href: "/therapist/requests", icon: Inbox },
+    { name: "My Clients", href: "/therapist/clients", icon: Users }, // NEW
     { name: "My Schedule", href: "/therapist/schedule", icon: Calendar },
     { name: "Settings", href: "/therapist/settings", icon: Settings },
   ];
@@ -19,11 +28,8 @@ export default function TherapistNav({ user }) {
   return (
     <>
       {/* --- DESKTOP SIDEBAR --- */}
-      {/* Positioning: 'top-20' pushes it down 80px to sit perfectly under the Navbar.
-         Height: calc(100vh - 5rem) fills exactly the remaining space.
-      */}
       <aside className="hidden md:flex flex-col w-72 bg-[#F2F5F4] border-r border-gray-200/60 h-[calc(100vh-5rem)] fixed left-0 top-20 z-30">
-        {/* Header: User Card instead of Logo */}
+        {/* Header: User Card */}
         <div className="p-6 pb-2">
           <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100/50">
             <div className="flex items-center gap-3">
@@ -72,7 +78,7 @@ export default function TherapistNav({ user }) {
             </Link>
           ))}
 
-          {/* Decorative Promo/Tip Box */}
+          {/* Decorative Promo */}
           <div className="mt-8 mx-2 bg-gradient-to-br from-secondary/80 to-secondary text-white p-5 rounded-2xl relative overflow-hidden shadow-lg shadow-secondary/20">
             <Sparkles
               className="absolute top-2 right-2 text-white/20"
@@ -80,15 +86,14 @@ export default function TherapistNav({ user }) {
             />
             <h4 className="font-bold text-sm relative z-10">Pro Tip</h4>
             <p className="text-xs text-white/90 mt-1 relative z-10 leading-relaxed">
-              Update your calendar availability every Sunday to boost bookings
-              by 20%.
+              Accept requests within 2 hours to boost your ranking.
             </p>
           </div>
         </nav>
       </aside>
 
       {/* --- MOBILE BOTTOM BAR --- */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-gray-200 px-8 py-4 z-50 flex justify-between items-center shadow-[0_-4px_20px_rgba(0,0,0,0.03)] safe-area-pb">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-gray-200 px-6 py-4 z-50 flex justify-between items-center shadow-[0_-4px_20px_rgba(0,0,0,0.03)] safe-area-pb">
         {navItems.map((item) => (
           <Link
             key={item.href}
@@ -110,7 +115,6 @@ export default function TherapistNav({ user }) {
             </div>
           </Link>
         ))}
-        {/* Mobile Profile Link */}
         <Link
           href="/therapist/settings"
           className={`flex flex-col items-center gap-1.5 transition-all duration-300 ${

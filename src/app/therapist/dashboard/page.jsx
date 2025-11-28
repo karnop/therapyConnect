@@ -7,11 +7,14 @@ import {
   Sparkles,
   TrendingUp,
   Users,
+  ArrowRight,
+  AlertCircle,
 } from "lucide-react";
-import Link from "next/link"; // Add this
+import Link from "next/link";
 
 export default async function TherapistDashboard() {
-  const { upcoming, stats } = await getTherapistDashboardData();
+  const { requests, upcoming, stats, therapistProfile } =
+    await getTherapistDashboardData();
 
   const nextSession = upcoming[0];
   const otherSessions = upcoming.slice(1);
@@ -23,8 +26,23 @@ export default async function TherapistDashboard() {
         <p className="text-gray-500">Welcome back, Dr.</p>
       </div>
 
+      {requests.length > 0 && (
+        <Link href="/therapist/requests">
+          <div className="bg-orange-50 border border-orange-100 p-4 rounded-2xl flex items-center justify-between mb-8 cursor-pointer hover:bg-orange-100/50 transition-colors group">
+            <div className="flex items-center gap-3 text-orange-800">
+              <AlertCircle size={20} />
+              <span className="font-semibold">
+                You have {requests.length} pending booking requests.
+              </span>
+            </div>
+            <div className="flex items-center gap-1 text-sm font-bold text-orange-700 group-hover:gap-2 transition-all">
+              Review Now <ArrowRight size={16} />
+            </div>
+          </div>
+        </Link>
+      )}
+
       <div className="grid lg:grid-cols-3 gap-8">
-        {/* --- LEFT: MAIN CONTENT --- */}
         <div className="lg:col-span-2 space-y-8">
           {/* UP NEXT CARD */}
           {nextSession ? (
@@ -112,10 +130,14 @@ export default async function TherapistDashboard() {
                 )}
 
                 {nextSession.mode === "online" ? (
-                  <button className="w-full bg-white text-primary font-bold py-4 rounded-xl hover:bg-gray-100 transition-colors flex items-center justify-center gap-2">
-                    <Video size={20} />
-                    Start Video Session
-                  </button>
+                  // UPDATED: Using therapistProfile.meeting_link
+                  <a
+                    href={therapistProfile.meeting_link}
+                    target="_blank"
+                    className="bg-white text-primary px-6 py-4 rounded-xl font-bold hover:bg-gray-100 transition-colors flex items-center justify-center gap-2 w-full"
+                  >
+                    <Video size={20} /> Start Video Session
+                  </a>
                 ) : (
                   <div className="bg-white/10 p-4 rounded-xl text-center text-sm text-white/80">
                     Client scheduled to arrive at clinic.
@@ -147,10 +169,7 @@ export default async function TherapistDashboard() {
                     href={`/therapist/session/${session.$id}`}
                     key={session.$id}
                   >
-                    <div
-                      key={session.$id}
-                      className="bg-white p-4 rounded-xl border border-gray-100 flex items-center justify-between hover:shadow-sm transition-shadow"
-                    >
+                    <div className="bg-white p-4 rounded-xl border border-gray-100 flex items-center justify-between hover:shadow-md transition-all cursor-pointer">
                       <div className="flex items-center gap-4">
                         <div className="bg-gray-50 w-12 h-12 rounded-full flex items-center justify-center font-bold text-gray-500">
                           {session.client?.full_name?.[0]}
@@ -160,7 +179,7 @@ export default async function TherapistDashboard() {
                             {session.client?.full_name}
                           </p>
                           <p className="text-sm text-gray-500 flex items-center gap-2">
-                            <Calendar size={12} />
+                            <Calendar size={12} />{" "}
                             {format(
                               parseISO(session.start_time),
                               "MMM d, h:mm a"
@@ -168,13 +187,17 @@ export default async function TherapistDashboard() {
                           </p>
                         </div>
                       </div>
-                      {session.is_shared && (
-                        <Sparkles
-                          size={16}
-                          className="text-yellow-500"
-                          title="Prep Shared"
-                        />
-                      )}
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`text-xs px-2 py-1 rounded-md font-medium ${
+                            session.mode === "online"
+                              ? "bg-blue-50 text-blue-600"
+                              : "bg-orange-50 text-orange-600"
+                          }`}
+                        >
+                          {session.mode}
+                        </span>
+                      </div>
                     </div>
                   </Link>
                 ))}
@@ -185,31 +208,23 @@ export default async function TherapistDashboard() {
 
         {/* --- RIGHT: FINANCIAL STATS --- */}
         <div className="lg:col-span-1 space-y-6">
-          {/* Earnings Card */}
           <div className="bg-gradient-to-br from-secondary/5 to-secondary/10 p-6 rounded-[2rem] border border-secondary/10">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-white rounded-full shadow-sm text-secondary">
-                <TrendingUp size={20} />
-              </div>
-              <h3 className="font-bold text-secondary">Earnings (MTD)</h3>
-            </div>
+            <h3 className="font-bold text-secondary mb-2">Earnings (MTD)</h3>
             <p className="text-4xl font-bold text-primary">
               ₹{stats.earnings.toLocaleString()}
             </p>
             <p className="text-xs text-gray-500 mt-2 font-medium">
-              Based on {stats.sessions} confirmed sessions this month.
+              Based on {stats.sessions} confirmed sessions.
             </p>
           </div>
 
-          {/* Quick Stats */}
           <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
             <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <Users size={18} className="text-gray-400" />
-              Practice Stats
+              <Users size={18} className="text-gray-400" /> Practice Stats
             </h3>
             <div className="space-y-4">
               <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-500">Total Sessions</span>
+                <span className="text-gray-500">Confirmed Sessions</span>
                 <span className="font-bold">{stats.sessions}</span>
               </div>
               <div className="flex justify-between items-center text-sm">

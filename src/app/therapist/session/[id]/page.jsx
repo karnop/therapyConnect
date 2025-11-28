@@ -18,7 +18,7 @@ export default async function SessionDetailsPage({ params }) {
 
   if (!data) return notFound();
 
-  const { booking, client, history } = data;
+  const { booking, client, history, therapist } = data; // Added therapist here
   const isOnline = booking.mode === "online";
 
   return (
@@ -34,7 +34,7 @@ export default async function SessionDetailsPage({ params }) {
       <div className="grid lg:grid-cols-3 gap-8">
         {/* --- LEFT: CLIENT DOSSIER & PREP --- */}
         <div className="lg:col-span-2 space-y-8">
-          {/* 1. Client Card */}
+          {/* 1. Client Card (Same as before) */}
           <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-6">
             <div className="w-20 h-20 bg-primary text-white rounded-full flex items-center justify-center text-3xl font-bold">
               {client.full_name?.[0]}
@@ -54,7 +54,7 @@ export default async function SessionDetailsPage({ params }) {
             </div>
           </div>
 
-          {/* 2. Session Prep (Dopamine for Therapist) */}
+          {/* 2. Session Prep (Same as before) */}
           <div className="bg-[#2D2D2D] text-white p-8 rounded-[2rem] shadow-xl relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
 
@@ -135,8 +135,9 @@ export default async function SessionDetailsPage({ params }) {
 
             {isOnline && (
               <div className="mt-6 pt-6 border-t border-gray-100">
+                {/* UPDATED: Using therapist.meeting_link */}
                 <a
-                  href={booking.therapist?.meeting_link}
+                  href={therapist.meeting_link}
                   target="_blank"
                   className="bg-secondary text-white px-6 py-3 rounded-xl font-bold hover:bg-[#5A7A66] transition-colors inline-flex items-center gap-2"
                 >
@@ -147,7 +148,7 @@ export default async function SessionDetailsPage({ params }) {
           </div>
         </div>
 
-        {/* --- RIGHT: INTERACTION HISTORY --- */}
+        {/* --- RIGHT: INTERACTION HISTORY (Same as before) --- */}
         <div className="lg:col-span-1">
           <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm h-full max-h-[800px] overflow-y-auto">
             <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
@@ -160,7 +161,6 @@ export default async function SessionDetailsPage({ params }) {
                 const isCurrent = session.$id === booking.$id;
                 return (
                   <div key={session.$id} className="relative pl-10">
-                    {/* Timeline Dot */}
                     <div
                       className={`absolute left-2 top-1.5 w-4 h-4 rounded-full border-2 ${
                         isCurrent

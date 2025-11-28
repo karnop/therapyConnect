@@ -5,15 +5,14 @@ import { useState } from "react";
 import {
   Video,
   MapPin,
-  CreditCard,
+  Send,
   ArrowRight,
   Loader2,
   CheckCircle2,
 } from "lucide-react";
 import { useFormStatus } from "react-dom";
 
-// Sub-component for the Submit Button to handle pending state
-function SubmitButton({ price }) {
+function SubmitButton() {
   const { pending } = useFormStatus();
   return (
     <button
@@ -24,12 +23,12 @@ function SubmitButton({ price }) {
       {pending ? (
         <>
           <Loader2 size={20} className="animate-spin" />
-          Processing...
+          Sending Request...
         </>
       ) : (
         <>
-          <CreditCard size={20} />
-          Pay ₹{price} & Confirm
+          <Send size={20} />
+          Send Booking Request
           <ArrowRight
             size={18}
             className="group-hover:translate-x-1 transition-transform"
@@ -41,11 +40,8 @@ function SubmitButton({ price }) {
 }
 
 export default function BookingForm({ slotId, price, therapist }) {
-  // Check availability based on therapist profile settings
   const hasOnline = !!therapist.meeting_link;
   const hasOffline = !!therapist.clinic_address;
-
-  // Default to whatever is available
   const [selectedMode, setSelectedMode] = useState(
     hasOnline ? "online" : "offline"
   );
@@ -55,7 +51,6 @@ export default function BookingForm({ slotId, price, therapist }) {
       action={createBooking}
       className="bg-white p-8 rounded-3xl border border-gray-100 shadow-lg h-fit sticky top-24"
     >
-      {/* Hidden inputs to pass data to the Server Action */}
       <input type="hidden" name="slotId" value={slotId} />
       <input type="hidden" name="mode" value={selectedMode} />
 
@@ -64,7 +59,7 @@ export default function BookingForm({ slotId, price, therapist }) {
       </h2>
 
       <div className="space-y-3 mb-8">
-        {/* Online Option */}
+        {/* ... Online/Offline Options (Same as before) ... */}
         {hasOnline && (
           <div
             onClick={() => setSelectedMode("online")}
@@ -103,8 +98,6 @@ export default function BookingForm({ slotId, price, therapist }) {
             )}
           </div>
         )}
-
-        {/* Offline Option */}
         {hasOffline && (
           <div
             onClick={() => setSelectedMode("offline")}
@@ -145,13 +138,6 @@ export default function BookingForm({ slotId, price, therapist }) {
             )}
           </div>
         )}
-
-        {/* Fallback if therapist has no settings */}
-        {!hasOnline && !hasOffline && (
-          <div className="p-4 bg-red-50 text-red-500 text-sm rounded-xl border border-red-100">
-            Error: This therapist has not configured any location details yet.
-          </div>
-        )}
       </div>
 
       <div className="space-y-3 mb-4">
@@ -165,15 +151,15 @@ export default function BookingForm({ slotId, price, therapist }) {
         </div>
         <div className="h-px bg-gray-100 my-2"></div>
         <div className="flex justify-between text-lg font-bold text-primary">
-          <span>Total</span>
+          <span>Total to Pay Later</span>
           <span>₹{price}</span>
         </div>
       </div>
 
-      <SubmitButton price={price} />
-
+      <SubmitButton />
       <p className="text-xs text-center text-gray-400 mt-4">
-        *Simulated Payment. No money will be deducted.
+        *No payment required right now. Pay directly to therapist after
+        approval.
       </p>
     </form>
   );

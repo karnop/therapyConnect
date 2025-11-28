@@ -4,27 +4,26 @@ import { createSessionClient, createAdminClient } from "@/lib/appwrite";
 import { ID, Query } from "node-appwrite";
 import { revalidatePath } from "next/cache";
 
-const DB_ID = process.env.NEXT_PUBLIC_DB_ID;
-const USERS_COLLECTION = process.env.NEXT_PUBLIC_USERS_COLLECTION_ID;
-const RATES_COLLECTION = process.env.NEXT_PUBLIC_RATES_COLLECTION_ID;
-const BUCKET_ID = process.env.NEXT_PUBLIC_STORAGE_BUCKET_ID;
+const DB_ID = "therapy_connect_db";
+const USERS_COLLECTION = "users";
+const RATES_COLLECTION = "service_rates";
+const BUCKET_ID = "69272be5003c066e0366";
 
 export async function updateTherapistProfile(formData) {
-  // 1. Get Session Client for Auth
-  const session = await createSessionClient();
-  const account = session.account;
+  const { databases, account, storage } = await createSessionClient();
   const user = await account.get();
 
-  // 2. Get Admin Client for DB/Storage
+  // Admin client for writes
   const admin = await createAdminClient();
-  const databases = admin.databases;
-  const storage = admin.storage;
+  const dbAdmin = admin.databases;
+  const storageAdmin = admin.storage;
 
   const fullName = formData.get("fullName");
   const bio = formData.get("bio");
   const clinicAddress = formData.get("clinicAddress");
   const metroStation = formData.get("metroStation");
   const meetingLink = formData.get("meetingLink");
+  const paymentInstructions = formData.get("paymentInstructions"); // NEW
 
   const specialtiesInput = formData.get("specialties");
   const specialties = specialtiesInput
@@ -38,9 +37,12 @@ export async function updateTherapistProfile(formData) {
   let newAvatarId = null;
 
   try {
-    // Avatar Upload Logic
     if (avatarFile && avatarFile.size > 0 && avatarFile.name !== "undefined") {
-      const file = await storage.createFile(BUCKET_ID, ID.unique(), avatarFile);
+      const file = await storageAdmin.createFile(
+        BUCKET_ID,
+        ID.unique(),
+        avatarFile
+      );
       newAvatarId = file.$id;
     }
 
@@ -51,44 +53,38 @@ export async function updateTherapistProfile(formData) {
       clinic_address: clinicAddress,
       metro_station: metroStation,
       meeting_link: meetingLink,
+      payment_instructions: paymentInstructions, // NEW
     };
 
     if (newAvatarId) {
       updateData.avatar_id = newAvatarId;
     }
 
-    await databases.updateDocument(
-      DB_ID,
-      USERS_COLLECTION,
-      user.$id,
-      updateData
-    );
+    await dbAdmin.updateDocument(DB_ID, USERS_COLLECTION, user.$id, updateData);
 
     if (fullName && fullName !== user.name) {
       await account.updateName(fullName);
     }
 
-    // Update Rates
     const price60 = formData.get("price60");
     if (price60) {
-      const rates = await databases.listDocuments(DB_ID, RATES_COLLECTION, [
+      const rates = await dbAdmin.listDocuments(DB_ID, RATES_COLLECTION, [
         Query.equal("therapist_id", user.$id),
         Query.equal("duration_mins", 60),
       ]);
 
       if (rates.documents.length > 0) {
-        await databases.updateDocument(
+        await dbAdmin.updateDocument(
           DB_ID,
           RATES_COLLECTION,
           rates.documents[0].$id,
           { price_inr: parseInt(price60) }
         );
       } else {
-        await databases.createDocument(DB_ID, RATES_COLLECTION, ID.unique(), {
+        await dbAdmin.createDocument(DB_ID, RATES_COLLECTION, ID.unique(), {
           therapist_id: user.$id,
           duration_mins: 60,
           price_inr: parseInt(price60),
-          // is_active: true // REMOVED to prevent "Invalid document structure" error
         });
       }
     }
@@ -105,10 +101,9 @@ export async function updateTherapistProfile(formData) {
 export async function getTherapistData() {
   const session = await createSessionClient();
   const account = session.account;
-
   const admin = await createAdminClient();
   const databases = admin.databases;
-  // const storage = admin.storage; // Not needed for URL construction
+  const storage = admin.storage;
 
   try {
     const user = await account.get();
@@ -119,11 +114,8 @@ export async function getTherapistData() {
       user.$id
     );
 
-    // Get Avatar URL
     let avatarUrl = null;
     if (profile.avatar_id) {
-      // FIX: Manually construct the URL for the Node SDK
-      // This avoids downloading the file buffer and gives us the public link directly.
       const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
       const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
       avatarUrl = `${endpoint}/storage/buckets/${BUCKET_ID}/files/${profile.avatar_id}/view?project=${projectId}`;

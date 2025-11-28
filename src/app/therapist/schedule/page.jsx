@@ -1,12 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  createSlot,
-  getMySlots,
-  deleteSlot,
-  generateBulkSlots,
-} from "@/actions/schedule";
+import { createSlot, getMySlots, deleteSlot } from "@/actions/schedule";
 import {
   Plus,
   Trash2,
@@ -17,6 +12,7 @@ import {
   Sparkles,
   X,
   AlertCircle,
+  ExternalLink,
 } from "lucide-react";
 import {
   format,
@@ -31,22 +27,19 @@ import {
   parseISO,
   isBefore,
   startOfToday,
-  differenceInCalendarDays,
 } from "date-fns";
+import Link from "next/link";
 
 export default function SchedulePage() {
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null); // Local error state
+  const [error, setError] = useState(null);
 
   // Calendar State
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
-
-  // Modal State
   const [showBulkModal, setShowBulkModal] = useState(false);
 
-  // Fetch Data
   const fetchSlots = async () => {
     const data = await getMySlots();
     setSlots(data);
@@ -66,21 +59,25 @@ export default function SchedulePage() {
   const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
   const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
 
-  // Filter slots for the SELECTED DATE
   const daySlots = slots.filter((slot) =>
     isSameDay(parseISO(slot.start_time), selectedDate)
   );
 
-  // Filter slots for the MONTH
   const getSlotsForDay = (date) => {
     return slots.filter((slot) => isSameDay(parseISO(slot.start_time), date));
   };
 
   // --- HANDLERS ---
   const handleDelete = async (id) => {
-    if (confirm("Remove this slot?")) {
-      setSlots((prev) => prev.filter((s) => s.$id !== id));
-      await deleteSlot(id);
+    // REMOVED ALERT BOX
+    // Optimistic UI update
+    const previousSlots = [...slots];
+    setSlots((prev) => prev.filter((s) => s.$id !== id));
+
+    const result = await deleteSlot(id);
+    if (result?.error) {
+      alert(result.error);
+      setSlots(previousSlots); // Rollback if server fails (e.g. if booked)
     }
   };
 
@@ -90,32 +87,27 @@ export default function SchedulePage() {
     const formData = new FormData(e.currentTarget);
     const time = formData.get("time");
 
-    // Construct Date Objects
     const dateStr = format(selectedDate, "yyyy-MM-dd");
     const startDateTime = new Date(`${dateStr}T${time}`);
     const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000);
     const now = new Date();
 
-    // 1. VALIDATION: Past Date Check
     if (startDateTime < now) {
       setError("You cannot add slots in the past.");
       return;
     }
 
-    // 2. VALIDATION: Overlap Check (Frontend)
     const hasOverlap = daySlots.some((slot) => {
       const slotStart = new Date(slot.start_time);
       const slotEnd = new Date(slot.end_time);
-      // Overlap formula
       return startDateTime < slotEnd && endDateTime > slotStart;
     });
 
     if (hasOverlap) {
-      setError("This time overlaps with an existing slot (slots are 1 hour).");
+      setError("Overlaps with an existing slot.");
       return;
     }
 
-    // If valid, call server
     const result = await createSlot(formData);
     if (result.error) {
       setError(result.error);
@@ -125,8 +117,6 @@ export default function SchedulePage() {
     }
   };
 
-  // Disable "Add" button if selected date is strictly in the past (yesterday or before)
-  // We allow 'today' because the user might want to add a slot for later today.
   const isPastDate = isBefore(selectedDate, startOfToday());
 
   return (
@@ -151,7 +141,6 @@ export default function SchedulePage() {
       <div className="grid lg:grid-cols-3 gap-8 items-start">
         {/* --- LEFT: CALENDAR VIEW --- */}
         <div className="lg:col-span-1 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-          {/* Month Nav */}
           <div className="flex items-center justify-between mb-6">
             <button
               onClick={prevMonth}
@@ -170,7 +159,6 @@ export default function SchedulePage() {
             </button>
           </div>
 
-          {/* Grid */}
           <div className="grid grid-cols-7 gap-2 text-center mb-2">
             {["S", "M", "T", "W", "T", "F", "S"].map((d) => (
               <div key={d} className="text-xs font-bold text-gray-400">
@@ -180,9 +168,11 @@ export default function SchedulePage() {
           </div>
           <div className="grid grid-cols-7 gap-2">
             {daysInMonth.map((day, idx) => {
-              const hasSlots = getSlotsForDay(day).length > 0;
+              const dailySlots = getSlotsForDay(day);
+              const hasSlots = dailySlots.length > 0;
+              const hasBookings = dailySlots.some((s) => s.is_booked);
+
               const isSelected = isSameDay(day, selectedDate);
-              // Visual cue for past dates
               const isPast = isBefore(day, startOfToday());
 
               return (
@@ -190,7 +180,7 @@ export default function SchedulePage() {
                   key={idx}
                   onClick={() => {
                     setSelectedDate(day);
-                    setError(null); // Clear errors on date change
+                    setError(null);
                   }}
                   className={`
                                 relative h-10 w-10 rounded-full flex items-center justify-center text-sm transition-all
@@ -214,19 +204,31 @@ export default function SchedulePage() {
                             `}
                 >
                   {format(day, "d")}
-                  {/* Dot indicator if slots exist */}
                   {hasSlots && !isSelected && (
-                    <span className="absolute bottom-1 w-1 h-1 bg-green-500 rounded-full"></span>
+                    <span
+                      className={`absolute bottom-1 w-1 h-1 rounded-full ${
+                        hasBookings ? "bg-orange-400" : "bg-green-500"
+                      }`}
+                    ></span>
                   )}
                 </button>
               );
             })}
           </div>
+
+          <div className="flex gap-4 mt-6 justify-center text-xs text-gray-500">
+            <div className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-green-500"></span> Open
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-orange-400"></span>{" "}
+              Booked
+            </div>
+          </div>
         </div>
 
         {/* --- RIGHT: TIMELINE VIEW --- */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Selected Date Header */}
           <div className="flex items-center gap-4 bg-[#F2F5F4] p-4 rounded-2xl border border-gray-200/50">
             <div className="bg-white p-3 rounded-xl shadow-sm text-center min-w-[70px]">
               <span className="block text-xs uppercase text-gray-500 font-bold">
@@ -241,49 +243,97 @@ export default function SchedulePage() {
                 Availability for {format(selectedDate, "MMMM do")}
               </h3>
               <p className="text-sm text-gray-500">
-                {daySlots.length} slots open
+                {daySlots.length} slots total
               </p>
             </div>
           </div>
 
-          {/* Error Message Display */}
           {error && (
-            <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-xl flex items-center gap-2 text-sm font-medium animate-in fade-in slide-in-from-top-2">
+            <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-xl flex items-center gap-2 text-sm font-medium animate-in fade-in">
               <AlertCircle size={18} />
               {error}
             </div>
           )}
 
-          {/* Slots Grid */}
           <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm min-h-[300px]">
             {loading ? (
               <div className="flex justify-center py-20">
                 <Loader2 className="animate-spin text-gray-300" />
               </div>
             ) : daySlots.length > 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {daySlots.map((slot) => (
-                  <div
-                    key={slot.$id}
-                    className="flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:border-secondary/30 bg-gray-50 hover:bg-white transition-all group"
-                  >
-                    <span className="font-semibold text-gray-700">
-                      {format(parseISO(slot.start_time), "h:mm a")}
-                    </span>
-                    {slot.is_booked ? (
-                      <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full">
-                        Booked
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => handleDelete(slot.$id)}
-                        className="text-gray-300 hover:text-red-500 transition-colors"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
-                  </div>
-                ))}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {daySlots.map((slot) => {
+                  const isConfirmed = slot.status === "confirmed";
+                  const isPending = [
+                    "pending_approval",
+                    "awaiting_payment",
+                    "payment_verification",
+                  ].includes(slot.status);
+                  const isAvailable = !slot.is_booked;
+
+                  let borderClass = "border-gray-100";
+                  let bgClass = "bg-white";
+                  let statusLabel = "Available";
+
+                  if (isConfirmed) {
+                    borderClass = "border-green-200";
+                    bgClass = "bg-green-50/50";
+                    statusLabel = "Confirmed";
+                  } else if (isPending) {
+                    borderClass = "border-yellow-200";
+                    bgClass = "bg-yellow-50/50";
+                    statusLabel = "Pending Request";
+                  } else if (slot.status === "unknown_booking") {
+                    // Handle the rare edge case where bookings are missing but slot is locked
+                    borderClass = "border-gray-200";
+                    bgClass = "bg-gray-100 opacity-50";
+                    statusLabel = "Unavailable";
+                  }
+
+                  return (
+                    <div
+                      key={slot.$id}
+                      className={`p-4 rounded-xl border ${borderClass} ${bgClass} flex justify-between items-center transition-all`}
+                    >
+                      <div>
+                        <p className="font-bold text-gray-800 text-lg">
+                          {format(parseISO(slot.start_time), "h:mm a")}
+                        </p>
+                        <p
+                          className={`text-xs font-medium ${
+                            isConfirmed
+                              ? "text-green-600"
+                              : isPending
+                              ? "text-yellow-600"
+                              : "text-gray-400"
+                          }`}
+                        >
+                          {statusLabel}
+                        </p>
+                      </div>
+
+                      {isAvailable ? (
+                        <button
+                          onClick={() => handleDelete(slot.$id)}
+                          className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+                          title="Delete Slot"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      ) : // If booked/pending, show link to session if valid bookingId exists
+                      slot.bookingId ? (
+                        <Link
+                          href={`/therapist/session/${slot.bookingId}`}
+                          className="text-gray-400 hover:text-secondary p-2"
+                        >
+                          <ExternalLink size={18} />
+                        </Link>
+                      ) : (
+                        <div className="w-8"></div> // Spacer if unavailable but no link
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-20">
@@ -293,7 +343,6 @@ export default function SchedulePage() {
             )}
           </div>
 
-          {/* Quick Add Single Slot */}
           <div
             className={`bg-white p-6 rounded-3xl border border-gray-100 shadow-sm ${
               isPastDate ? "opacity-50 pointer-events-none" : ""
@@ -333,7 +382,6 @@ export default function SchedulePage() {
         </div>
       </div>
 
-      {/* --- BULK GENERATOR MODAL --- */}
       {showBulkModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl p-8 relative animate-in fade-in zoom-in duration-200">
@@ -343,14 +391,12 @@ export default function SchedulePage() {
             >
               <X size={20} />
             </button>
-
             <h2 className="text-2xl font-bold text-primary mb-2">
               Bulk Generate Slots
             </h2>
             <p className="text-gray-500 mb-6 text-sm">
               Create specific hours for multiple days at once.
             </p>
-
             <BulkGeneratorForm
               onSuccess={() => {
                 fetchSlots();
@@ -364,7 +410,7 @@ export default function SchedulePage() {
   );
 }
 
-// Sub-component for Bulk Form
+// BulkGeneratorForm component remains same...
 function BulkGeneratorForm({ onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [bulkError, setBulkError] = useState(null);
@@ -376,12 +422,10 @@ function BulkGeneratorForm({ onSuccess }) {
 
     const formData = new FormData(e.currentTarget);
 
-    // 3. VALIDATION: Check 14 day limit on Frontend
     const start = new Date(formData.get("startDate"));
     const end = new Date(formData.get("endDate"));
     const today = startOfToday();
 
-    // Basic sanity checks
     if (isBefore(start, today)) {
       setBulkError("Start date cannot be in the past.");
       setLoading(false);
@@ -402,7 +446,6 @@ function BulkGeneratorForm({ onSuccess }) {
       return;
     }
 
-    // Handle Checkboxes manually
     const selectedDays = [];
     e.currentTarget
       .querySelectorAll('input[name="day"]:checked')
@@ -434,7 +477,6 @@ function BulkGeneratorForm({ onSuccess }) {
           {bulkError}
         </div>
       )}
-
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
@@ -459,7 +501,6 @@ function BulkGeneratorForm({ onSuccess }) {
           />
         </div>
       </div>
-
       <div>
         <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
           Repeat On
@@ -481,7 +522,6 @@ function BulkGeneratorForm({ onSuccess }) {
           ))}
         </div>
       </div>
-
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
@@ -508,7 +548,6 @@ function BulkGeneratorForm({ onSuccess }) {
           />
         </div>
       </div>
-
       <button
         type="submit"
         disabled={loading}

@@ -4,9 +4,18 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Instagram, Twitter, Linkedin } from "lucide-react";
 
+// Helper for fake links
+const ComingSoonLink = ({ children }) => (
+  <span className="relative group cursor-not-allowed text-gray-400">
+    {children}
+    <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+      Coming Soon
+    </span>
+  </span>
+);
+
 export default function Footer() {
   const pathname = usePathname();
-  // Check if we are inside the therapist dashboard routes
   const isTherapistRoute = pathname?.startsWith("/therapist");
 
   return (
@@ -48,12 +57,7 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link
-                  href="/search?filter=packages"
-                  className="hover:underline"
-                >
-                  Care Packages
-                </Link>
+                <ComingSoonLink>Care Packages</ComingSoonLink>
               </li>
             </ul>
           </div>
@@ -62,14 +66,10 @@ export default function Footer() {
             <h3 className="font-semibold text-primary mb-4">Support</h3>
             <ul className="space-y-3 text-sm text-gray-500">
               <li>
-                <Link href="/help" className="hover:underline">
-                  Help Center
-                </Link>
+                <ComingSoonLink>Help Center</ComingSoonLink>
               </li>
               <li>
-                <Link href="/safety" className="hover:underline">
-                  Safety Information
-                </Link>
+                <ComingSoonLink>Safety Information</ComingSoonLink>
               </li>
               <li>
                 <Link href="/cancellation" className="hover:underline">
@@ -83,22 +83,24 @@ export default function Footer() {
             <h3 className="font-semibold text-primary mb-4">Community</h3>
             <ul className="space-y-3 text-sm text-gray-500">
               <li>
-                <Link href="/blog" className="hover:underline">
-                  Mental Health Blog
-                </Link>
+                <ComingSoonLink>Mental Health Blog</ComingSoonLink>
               </li>
               <li>
-                <Link href="/founders" className="hover:underline">
-                  Our Story
-                </Link>
+                <ComingSoonLink>Our Story</ComingSoonLink>
               </li>
             </ul>
             <div className="flex gap-4 mt-6">
-              <div className="p-2 bg-white rounded-full border border-gray-200 hover:border-secondary cursor-pointer transition-colors">
-                <Instagram size={18} className="text-gray-600" />
+              <div className="p-2 bg-white rounded-full border border-gray-200 hover:border-secondary cursor-pointer transition-colors group">
+                <Instagram
+                  size={18}
+                  className="text-gray-600 group-hover:text-secondary"
+                />
               </div>
-              <div className="p-2 bg-white rounded-full border border-gray-200 hover:border-secondary cursor-pointer transition-colors">
-                <Twitter size={18} className="text-gray-600" />
+              <div className="p-2 bg-white rounded-full border border-gray-200 hover:border-secondary cursor-pointer transition-colors group">
+                <Twitter
+                  size={18}
+                  className="text-gray-600 group-hover:text-secondary"
+                />
               </div>
             </div>
           </div>
@@ -116,9 +118,7 @@ export default function Footer() {
             <Link href="/terms" className="hover:underline">
               Terms
             </Link>
-            <Link href="/sitemap" className="hover:underline">
-              Sitemap
-            </Link>
+            <ComingSoonLink>Sitemap</ComingSoonLink>
           </div>
         </div>
       </div>

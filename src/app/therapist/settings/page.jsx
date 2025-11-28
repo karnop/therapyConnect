@@ -14,6 +14,7 @@ import {
   DollarSign,
   Check,
   ChevronDown,
+  Wallet,
 } from "lucide-react";
 import Image from "next/image";
 import { SPECIALTIES_LIST, METRO_STATIONS } from "@/lib/constants";
@@ -26,10 +27,7 @@ export default function SettingsPage() {
   const [data, setData] = useState({ profile: {}, rates: [], avatarUrl: null });
   const [previewImage, setPreviewImage] = useState(null);
 
-  // Form States
   const [selectedSpecialties, setSelectedSpecialties] = useState([]);
-
-  // Metro Autocomplete States
   const [metroQuery, setMetroQuery] = useState("");
   const [filteredMetros, setFilteredMetros] = useState([]);
   const [showMetroDropdown, setShowMetroDropdown] = useState(false);
@@ -68,7 +66,6 @@ export default function SettingsPage() {
     }
   };
 
-  // Metro Filter Logic
   const handleMetroChange = (e) => {
     const value = e.target.value;
     setMetroQuery(value);
@@ -85,9 +82,7 @@ export default function SettingsPage() {
   };
 
   const selectMetro = (station) => {
-    // 1. Update the input value
     setMetroQuery(station);
-    // 2. Close dropdown
     setShowMetroDropdown(false);
   };
 
@@ -120,11 +115,10 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      {/* --- TABS --- */}
-      <div className="flex gap-6 border-b border-gray-200 mb-8">
+      <div className="flex gap-6 border-b border-gray-200 mb-8 overflow-x-auto">
         <button
           onClick={() => setActiveTab("profile")}
-          className={`pb-4 text-sm font-semibold transition-all relative ${
+          className={`pb-4 text-sm font-semibold transition-all relative shrink-0 ${
             activeTab === "profile"
               ? "text-secondary"
               : "text-gray-400 hover:text-gray-600"
@@ -137,7 +131,7 @@ export default function SettingsPage() {
         </button>
         <button
           onClick={() => setActiveTab("practice")}
-          className={`pb-4 text-sm font-semibold transition-all relative ${
+          className={`pb-4 text-sm font-semibold transition-all relative shrink-0 ${
             activeTab === "practice"
               ? "text-secondary"
               : "text-gray-400 hover:text-gray-600"
@@ -150,10 +144,10 @@ export default function SettingsPage() {
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="max-w-3xl pb-20">
+      <form onSubmit={handleSubmit} className="max-w-3xl pb-40 md:pb-24">
         {/* --- TAB 1: PERSONAL PROFILE --- */}
         <div className={activeTab === "profile" ? "block space-y-8" : "hidden"}>
-          {/* Avatar & Name */}
+          {/* Same as before... Avatar, Bio, Specialties */}
           <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-8 items-start">
             <div
               className="relative group cursor-pointer shrink-0"
@@ -196,7 +190,6 @@ export default function SettingsPage() {
                   name="fullName"
                   defaultValue={data.profile.full_name}
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all"
-                  placeholder="Dr. John Doe"
                 />
               </div>
               <div>
@@ -213,7 +206,6 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Bio & Specialties */}
           <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -224,10 +216,8 @@ export default function SettingsPage() {
                 rows={6}
                 defaultValue={data.profile.bio}
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all resize-none"
-                placeholder="Share your background, approach to therapy, and what clients can expect..."
               />
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-3">
                 Specialties
@@ -237,7 +227,6 @@ export default function SettingsPage() {
                 name="specialties"
                 value={selectedSpecialties.join(",")}
               />
-
               <div className="flex flex-wrap gap-2">
                 {SPECIALTIES_LIST.map((item) => {
                   const isSelected = selectedSpecialties.includes(item);
@@ -252,7 +241,7 @@ export default function SettingsPage() {
                           : "bg-white text-gray-600 border-gray-200 hover:border-secondary hover:text-secondary"
                       }`}
                     >
-                      {item}
+                      {item}{" "}
                       {isSelected && (
                         <Check size={14} className="inline-block ml-2 mb-0.5" />
                       )}
@@ -260,9 +249,6 @@ export default function SettingsPage() {
                   );
                 })}
               </div>
-              <p className="text-xs text-gray-400 mt-3">
-                Select all that apply. These help clients find you.
-              </p>
             </div>
           </div>
         </div>
@@ -271,6 +257,34 @@ export default function SettingsPage() {
         <div
           className={activeTab === "practice" ? "block space-y-8" : "hidden"}
         >
+          {/* Payment Details (NEW) */}
+          <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
+                <Wallet size={20} />
+              </div>
+              <h2 className="text-lg font-bold text-primary">
+                Payment Collection
+              </h2>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Payment Instructions for Clients
+              </label>
+              <textarea
+                name="paymentInstructions"
+                rows={4}
+                defaultValue={data.profile.payment_instructions}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all resize-none"
+                placeholder="e.g. Please UPI to 9876543210@okicici. Or 'Cash accepted at clinic'. This will be shown to clients AFTER you accept their request."
+              />
+              <p className="text-xs text-gray-400 mt-2">
+                Clients will be asked to follow these instructions to pay you
+                directly.
+              </p>
+            </div>
+          </div>
+
           {/* Pricing */}
           <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
@@ -281,7 +295,6 @@ export default function SettingsPage() {
                 Session Pricing
               </h2>
             </div>
-
             <div className="grid md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -296,23 +309,6 @@ export default function SettingsPage() {
                     name="price60"
                     defaultValue={rate60}
                     className="w-full pl-8 px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all font-medium"
-                    placeholder="2000"
-                  />
-                </div>
-              </div>
-              <div className="opacity-50 pointer-events-none grayscale">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  30 Minute Session
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-3.5 text-gray-400 font-medium">
-                    ₹
-                  </span>
-                  <input
-                    disabled
-                    type="text"
-                    value="Coming Soon"
-                    className="w-full pl-8 px-4 py-3 rounded-xl border border-gray-100 bg-gray-50"
                   />
                 </div>
               </div>
@@ -336,11 +332,7 @@ export default function SettingsPage() {
                 name="meetingLink"
                 defaultValue={data.profile.meeting_link || ""}
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all"
-                placeholder="https://meet.google.com/..."
               />
-              <p className="text-xs text-gray-400 mt-2">
-                Clients receive this link automatically for online bookings.
-              </p>
             </div>
           </div>
 
@@ -364,11 +356,8 @@ export default function SettingsPage() {
                   name="clinicAddress"
                   defaultValue={data.profile.clinic_address || ""}
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all"
-                  placeholder="e.g. B-44, Defence Colony, New Delhi"
                 />
               </div>
-
-              {/* Metro Station Autocomplete */}
               <div className="relative">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Nearest Metro Station
@@ -384,28 +373,23 @@ export default function SettingsPage() {
                     value={metroQuery}
                     onChange={handleMetroChange}
                     onFocus={() => setShowMetroDropdown(true)}
-                    onBlur={() => {
-                      // Small timeout to allow onMouseDown to fire first
-                      setTimeout(() => setShowMetroDropdown(false), 200);
-                    }}
+                    onBlur={() =>
+                      setTimeout(() => setShowMetroDropdown(false), 200)
+                    }
                     className="w-full pl-11 px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all"
-                    placeholder="Start typing station name..."
                   />
                   <div className="absolute right-4 top-3.5 pointer-events-none text-gray-400">
                     <ChevronDown size={18} />
                   </div>
                 </div>
-
-                {/* Dropdown Menu */}
                 {showMetroDropdown && filteredMetros.length > 0 && (
                   <div className="absolute z-10 w-full mt-2 bg-white border border-gray-100 rounded-xl shadow-xl max-h-60 overflow-y-auto">
                     {filteredMetros.map((station, idx) => (
                       <button
                         key={idx}
                         type="button"
-                        // Use onMouseDown instead of onClick to fire before blur
                         onMouseDown={(e) => {
-                          e.preventDefault(); // Prevent focus loss
+                          e.preventDefault();
                           selectMetro(station);
                         }}
                         className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-secondary hover:font-medium transition-colors border-b border-gray-50 last:border-0"
@@ -415,19 +399,11 @@ export default function SettingsPage() {
                     ))}
                   </div>
                 )}
-                {showMetroDropdown &&
-                  metroQuery.length > 0 &&
-                  filteredMetros.length === 0 && (
-                    <div className="absolute z-10 w-full mt-2 bg-white border border-gray-100 rounded-xl shadow-xl px-4 py-3 text-sm text-gray-400">
-                      No stations found.
-                    </div>
-                  )}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Floating Save Bar */}
         <div className="fixed bottom-20 md:bottom-0 right-0 left-0 md:left-72 p-4 bg-white/80 backdrop-blur-md border-t border-gray-200 flex justify-end z-40 transition-all">
           <button
             type="submit"
@@ -438,7 +414,7 @@ export default function SettingsPage() {
               <Loader2 size={18} className="animate-spin" />
             ) : (
               <Save size={18} />
-            )}
+            )}{" "}
             Save Changes
           </button>
         </div>
