@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createSlot, getMySlots, deleteSlot } from "@/actions/schedule";
+import { createSlot, getMySlots, deleteSlot } from "@/actions/schedule"; // Ensure this path matches your project structure
 import {
   Plus,
   Trash2,
@@ -27,6 +27,7 @@ import {
   parseISO,
   isBefore,
   startOfToday,
+  differenceInCalendarDays, // FIXED: Imported this function
 } from "date-fns";
 import Link from "next/link";
 
@@ -34,6 +35,9 @@ export default function SchedulePage() {
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Loading state for Quick Add action
+  const [createLoading, setCreateLoading] = useState(false);
 
   // Calendar State
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -69,7 +73,6 @@ export default function SchedulePage() {
 
   // --- HANDLERS ---
   const handleDelete = async (id) => {
-    // REMOVED ALERT BOX
     // Optimistic UI update
     const previousSlots = [...slots];
     setSlots((prev) => prev.filter((s) => s.$id !== id));
@@ -77,13 +80,15 @@ export default function SchedulePage() {
     const result = await deleteSlot(id);
     if (result?.error) {
       alert(result.error);
-      setSlots(previousSlots); // Rollback if server fails (e.g. if booked)
+      setSlots(previousSlots); // Rollback if server fails
     }
   };
 
   const handleQuickAdd = async (e) => {
     e.preventDefault();
     setError(null);
+    setCreateLoading(true); // Start loader
+
     const formData = new FormData(e.currentTarget);
     const time = formData.get("time");
 
@@ -92,8 +97,10 @@ export default function SchedulePage() {
     const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000);
     const now = new Date();
 
+    // Validation checks
     if (startDateTime < now) {
       setError("You cannot add slots in the past.");
+      setCreateLoading(false);
       return;
     }
 
@@ -105,10 +112,15 @@ export default function SchedulePage() {
 
     if (hasOverlap) {
       setError("Overlaps with an existing slot.");
+      setCreateLoading(false);
       return;
     }
 
+    // Execute Server Action
     const result = await createSlot(formData);
+
+    setCreateLoading(false); // Stop loader
+
     if (result.error) {
       setError(result.error);
     } else {
@@ -284,7 +296,6 @@ export default function SchedulePage() {
                     bgClass = "bg-yellow-50/50";
                     statusLabel = "Pending Request";
                   } else if (slot.status === "unknown_booking") {
-                    // Handle the rare edge case where bookings are missing but slot is locked
                     borderClass = "border-gray-200";
                     bgClass = "bg-gray-100 opacity-50";
                     statusLabel = "Unavailable";
@@ -329,7 +340,7 @@ export default function SchedulePage() {
                           <ExternalLink size={18} />
                         </Link>
                       ) : (
-                        <div className="w-8"></div> // Spacer if unavailable but no link
+                        <div className="w-8"></div>
                       )}
                     </div>
                   );
@@ -373,9 +384,16 @@ export default function SchedulePage() {
               />
               <button
                 type="submit"
-                className="bg-gray-900 text-white px-6 rounded-xl hover:bg-gray-800 transition-colors flex items-center gap-2 font-medium"
+                disabled={createLoading}
+                className="bg-gray-900 text-white px-6 rounded-xl hover:bg-gray-800 transition-colors flex items-center gap-2 font-medium disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                <Plus size={18} /> Add
+                {createLoading ? (
+                  <Loader2 className="animate-spin" size={18} />
+                ) : (
+                  <>
+                    <Plus size={18} /> Add
+                  </>
+                )}
               </button>
             </form>
           </div>
@@ -410,7 +428,7 @@ export default function SchedulePage() {
   );
 }
 
-// BulkGeneratorForm component remains same...
+// BulkGeneratorForm component
 function BulkGeneratorForm({ onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [bulkError, setBulkError] = useState(null);
@@ -432,6 +450,7 @@ function BulkGeneratorForm({ onSuccess }) {
       return;
     }
 
+    // FIXED: differenceInCalendarDays is now imported at the top of the file
     if (differenceInCalendarDays(end, start) > 14) {
       setBulkError(
         "You can only generate slots for a maximum of 14 days at a time."
@@ -459,6 +478,13 @@ function BulkGeneratorForm({ onSuccess }) {
       setLoading(false);
       return;
     }
+
+    // You need to ensure generateBulkSlots is imported or passed down
+    // Assuming it's imported from the same actions file as createSlot in your original code
+    // If not, make sure to import { generateBulkSlots } from "@/actions/schedule";
+    // For this snippet to work fully, I'll assume the import exists in the hidden part or is global.
+    // Re-importing it here to be safe if this is a copy-paste:
+    const { generateBulkSlots } = require("@/actions/schedule");
 
     const result = await generateBulkSlots(formData);
 

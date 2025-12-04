@@ -71,7 +71,6 @@ export async function createSlot(formData) {
   }
 }
 
-// --- 2. BULK GENERATOR ---
 export async function generateBulkSlots(formData) {
   const user = await (await createSessionClient()).account.get();
   const { databases } = await createAdminClient();
@@ -149,8 +148,6 @@ export async function generateBulkSlots(formData) {
     return { error: "Failed to generate some slots." };
   }
 }
-
-// --- 3. FETCH & DELETE (UPDATED) ---
 
 export async function deleteSlot(slotId) {
   const { databases } = await createAdminClient();
