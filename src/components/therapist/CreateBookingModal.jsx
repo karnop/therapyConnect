@@ -89,7 +89,8 @@ export default function CreateBookingModal({ onClose, onSuccess }) {
               </div>
             ) : (
               <div className="text-sm text-red-500 bg-red-50 p-3 rounded-xl">
-                No clients found. Add a client in the "My Clients" page first.
+                No clients found. Add a client in the &quot;My Clients&quot;
+                page first.
               </div>
             )}
           </div>

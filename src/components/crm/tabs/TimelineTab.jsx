@@ -213,7 +213,7 @@ function TimelineItem({ session }) {
                       Journal
                     </span>
                     <p className="text-sm text-gray-600 italic bg-gray-50 p-3 rounded-lg border border-gray-100">
-                      "{session.client_journal}"
+                      &quot;{session.client_journal}&quot;
                     </p>
                   </div>
                 )}
