@@ -59,12 +59,15 @@ export async function signup(formData) {
   redirect(redirectTo);
 }
 
-export async function login(formdata) {
-  const email = formdata.get("email");
-  const password = formdata.get("password");
+export async function login(formData) {
+  const rawEmail = formData.get("email");
+  const email = rawEmail ? rawEmail.toString().trim() : "";
+  const password = formData.get("password");
 
-  const { account } = await createAdminClient();
-  const redirectTo = formdata.get("redirect") || "/dashboard";
+  // Don't set a default string yet, we will determine it dynamically
+  let redirectTo = formData.get("redirect");
+
+  const { account, databases } = await createAdminClient();
 
   try {
     const session = await account.createEmailPasswordSession(email, password);
@@ -75,6 +78,28 @@ export async function login(formdata) {
       sameSite: "strict",
       secure: true,
     });
+
+    // --- NEW: Role-Based Redirect Logic ---
+    // If there is no specific redirect intended (like /book/xyz), calculate the dashboard URL
+    if (!redirectTo) {
+      try {
+        // Fetch the user profile to check the role
+        const profile = await databases.getDocument(
+          DB_ID,
+          USERS_COLLECTION_ID,
+          session.userId // The session object contains the userId
+        );
+
+        if (profile.role === "therapist") {
+          redirectTo = "/therapist/dashboard";
+        } else {
+          redirectTo = "/dashboard";
+        }
+      } catch (e) {
+        // Fallback if DB fetch fails
+        redirectTo = "/dashboard";
+      }
+    }
   } catch (error) {
     console.error("Login Error:", error);
     return {
@@ -84,7 +109,6 @@ export async function login(formdata) {
 
   redirect(redirectTo);
 }
-
 export async function logout() {
   const { account } = await createSessionClient();
   cookies().delete("appwrite-session");

@@ -23,7 +23,7 @@ const Navbar = ({ user }) => {
 
   // Where should the User Icon click go?
   const profileLink =
-    role === "therapist" ? "/therapist/settings" : "/dashboard";
+    role === "therapist" ? "/therapist/dashboard" : "/dashboard";
 
   // Where should the "Dashboard" text button go?
   const dashboardLink =
@@ -47,12 +47,14 @@ const Navbar = ({ user }) => {
 
           {/* --- DESKTOP NAVIGATION --- */}
           <div className="hidden md:flex gap-8">
-            <Link
-              href="/search"
-              className="text-sm font-medium text-primary hover:text-secondary transition-colors"
-            >
-              Find a Therapist
-            </Link>
+            {role !== "therapist" && (
+              <Link
+                href="/search"
+                className="text-sm font-medium text-primary hover:text-secondary transition-colors"
+              >
+                Find a Therapist
+              </Link>
+            )}
 
             {/* Hide "For Therapists" if user is already a therapist */}
             {role !== "therapist" && (
@@ -118,13 +120,15 @@ const Navbar = ({ user }) => {
       {isMenuOpen && (
         <div className="md:hidden absolute top-20 left-0 w-full bg-surface border-b border-gray-100 shadow-lg z-40">
           <div className="flex flex-col p-4 space-y-4 items-center pb-8">
-            <Link
-              href="/search"
-              onClick={() => setIsMenuOpen(false)}
-              className="text-lg font-medium text-primary hover:text-secondary"
-            >
-              Find a Therapist
-            </Link>
+            {role !== "therapist" && (
+              <Link
+                href="/search"
+                onClick={() => setIsMenuOpen(false)}
+                className="text-lg font-medium text-primary hover:text-secondary"
+              >
+                Find a Therapist
+              </Link>
+            )}
 
             {role !== "therapist" && (
               <Link
