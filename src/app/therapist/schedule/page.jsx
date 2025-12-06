@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createSlot, getMySlots, deleteSlot } from "@/actions/schedule"; // Ensure this path matches your project structure
+import { createSlot, getMySlots, deleteSlot } from "@/actions/schedule";
 import {
   Plus,
   Trash2,
@@ -13,6 +13,7 @@ import {
   X,
   AlertCircle,
   ExternalLink,
+  CalendarPlus,
 } from "lucide-react";
 import {
   format,
@@ -27,9 +28,10 @@ import {
   parseISO,
   isBefore,
   startOfToday,
-  differenceInCalendarDays, // FIXED: Imported this function
+  differenceInCalendarDays,
 } from "date-fns";
 import Link from "next/link";
+import CreateBookingModal from "@/components/therapist/CreateBookingModal";
 
 export default function SchedulePage() {
   const [slots, setSlots] = useState([]);
@@ -43,6 +45,7 @@ export default function SchedulePage() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showBulkModal, setShowBulkModal] = useState(false);
+  const [showBookingModal, setShowBookingModal] = useState(false);
 
   const fetchSlots = async () => {
     const data = await getMySlots();
@@ -141,13 +144,24 @@ export default function SchedulePage() {
             Click a date to manage availability.
           </p>
         </div>
-        <button
-          onClick={() => setShowBulkModal(true)}
-          className="bg-primary text-white px-6 py-3 rounded-xl shadow-soft hover:shadow-lg flex items-center gap-2 transition-all hover:bg-gray-800"
-        >
-          <Sparkles size={18} className="text-yellow-400" />
-          Auto-Generate Slots
-        </button>
+        <div className="flex gap-3">
+          {/* NEW: Manual Booking Button */}
+          <button
+            onClick={() => setShowBookingModal(true)}
+            className="bg-white border border-gray-200 text-gray-600 px-4 py-2.5 rounded-xl text-sm font-bold hover:border-secondary hover:text-secondary transition-colors flex items-center gap-2 shadow-sm"
+          >
+            <CalendarPlus size={18} />
+            New Appt
+          </button>
+
+          <button
+            onClick={() => setShowBulkModal(true)}
+            className="bg-primary text-white px-6 py-2.5 rounded-xl shadow-soft hover:shadow-lg flex items-center gap-2 transition-all hover:bg-gray-800 text-sm font-bold"
+          >
+            <Sparkles size={18} className="text-yellow-400" />
+            Auto-Generate
+          </button>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8 items-start">
@@ -423,6 +437,13 @@ export default function SchedulePage() {
             />
           </div>
         </div>
+      )}
+
+      {showBookingModal && (
+        <CreateBookingModal
+          onClose={() => setShowBookingModal(false)}
+          onSuccess={fetchSlots}
+        />
       )}
     </div>
   );

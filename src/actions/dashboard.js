@@ -4,16 +4,16 @@ import { createSessionClient, createAdminClient } from "@/lib/appwrite";
 import { Query } from "node-appwrite";
 import { revalidatePath } from "next/cache";
 import { sendEmail } from "@/lib/email";
-import { format, parseISO } from "date-fns"; // FIXED: Added missing imports
+import { format, parseISO } from "date-fns";
 
 const DB_ID = "therapy_connect_db";
 const BOOKINGS_COLLECTION = "bookings";
 const USERS_COLLECTION = "users";
 const RATES_COLLECTION = "service_rates";
 const SLOTS_COLLECTION = "slots";
+const CLIENT_RECORDS_COLLECTION = "client_records";
 const BUCKET_ID = "69272be5003c066e0366";
 
-// --- CLIENT: SAVE PREP ---
 export async function updateBookingPrep(formData) {
   const { databases } = await createAdminClient();
 
@@ -306,7 +306,7 @@ export async function getTherapistDashboardData() {
   };
 }
 
-// --- UPDATED: FETCH SESSION DETAILS ---
+// --- FETCH SESSION DETAILS ---
 export async function getSessionDetails(bookingId) {
   const { databases } = await createAdminClient();
   const session = await createSessionClient();
@@ -363,5 +363,47 @@ export async function submitPaymentProof(formData) {
     return { success: true };
   } catch (error) {
     return { error: error.message };
+  }
+}
+
+export async function getClientHomework() {
+  const session = await createSessionClient();
+  const user = await session.account.get();
+  const { databases } = await createAdminClient();
+
+  try {
+    // Fetch all clinical records linked to this client
+    const records = await databases.listDocuments(
+      DB_ID,
+      CLIENT_RECORDS_COLLECTION,
+      [Query.equal("client_id", user.$id)]
+    );
+
+    // Filter for those with homework and get therapist names
+    const homeworkList = await Promise.all(
+      records.documents.map(async (record) => {
+        if (!record.homework_list) return null;
+
+        try {
+          const therapist = await databases.getDocument(
+            DB_ID,
+            USERS_COLLECTION,
+            record.therapist_id
+          );
+          return {
+            id: record.$id,
+            therapistName: therapist.full_name,
+            tasks: record.homework_list,
+          };
+        } catch (e) {
+          return null;
+        }
+      })
+    );
+
+    return homeworkList.filter(Boolean);
+  } catch (error) {
+    console.error("Homework Fetch Error:", error);
+    return [];
   }
 }

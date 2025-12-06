@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getClientBookings } from "@/actions/dashboard";
+import { getClientBookings, getClientHomework } from "@/actions/dashboard";
 import { format, parseISO, isFuture } from "date-fns";
 import {
   Video,
@@ -15,24 +15,35 @@ import {
   Heart,
   Loader2,
   X,
+  ClipboardList,
+  BookOpen,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import PrepModal from "@/components/PrepModal";
 import PaymentModal from "@/components/PaymentModal";
+import { HomeworkModal, NotesModal } from "@/components/ClientModals";
 
 export default function ClientDashboard() {
   const [bookings, setBookings] = useState([]);
+  const [homework, setHomework] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Modal States
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [paymentBooking, setPaymentBooking] = useState(null);
+  const [viewNoteBooking, setViewNoteBooking] = useState(null);
+  const [showHomework, setShowHomework] = useState(false);
 
   const refreshData = () => {
     setLoading(true);
-    getClientBookings().then((data) => {
-      setBookings(data);
-      setLoading(false);
-    });
+    Promise.all([getClientBookings(), getClientHomework()]).then(
+      ([bData, hData]) => {
+        setBookings(bData);
+        setHomework(hData);
+        setLoading(false);
+      }
+    );
   };
 
   useEffect(() => {
@@ -60,7 +71,7 @@ export default function ClientDashboard() {
   return (
     <div className="min-h-screen bg-[#FAFAF8] py-12 px-4">
       <div className="max-w-5xl mx-auto">
-        {/* --- HEADER & NAVIGATION --- */}
+        {/* HEADER */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-bold text-primary">My Wellness Hub</h1>
@@ -69,12 +80,25 @@ export default function ClientDashboard() {
             </p>
           </div>
 
-          <div className="flex gap-3">
-            {/* My Care Team Link */}
+          <div className="flex flex-wrap gap-3">
+            {/* Homework Button (Only if exists) */}
+            {homework.length > 0 && (
+              <button
+                onClick={() => setShowHomework(true)}
+                className="bg-white border border-gray-200 text-gray-600 px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors flex items-center gap-2 shadow-sm"
+              >
+                <ClipboardList size={16} />
+                Homework
+                <span className="bg-blue-100 text-blue-600 text-[10px] px-1.5 py-0.5 rounded-full">
+                  {homework.length}
+                </span>
+              </button>
+            )}
+
             <Link href="/dashboard/therapists">
               <button className="bg-white border border-gray-200 text-gray-600 px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-50 transition-colors flex items-center gap-2 shadow-sm">
                 <Heart size={16} className="text-rose-500" />
-                My Care Team
+                My Team
               </button>
             </Link>
 
@@ -86,12 +110,11 @@ export default function ClientDashboard() {
           </div>
         </div>
 
-        {/* --- UPCOMING SESSIONS --- */}
+        {/* UPCOMING */}
         <section className="mb-12">
           <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">
             Upcoming & Pending
           </h2>
-
           {upcomingBookings.length > 0 ? (
             <div className="grid gap-6">
               {upcomingBookings.map((booking) => (
@@ -117,7 +140,7 @@ export default function ClientDashboard() {
           )}
         </section>
 
-        {/* --- PAST SESSIONS HISTORY --- */}
+        {/* PAST HISTORY */}
         {pastBookings.length > 0 && (
           <section className="opacity-90 hover:opacity-100 transition-opacity">
             <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">
@@ -127,10 +150,9 @@ export default function ClientDashboard() {
               {pastBookings.map((booking) => (
                 <div
                   key={booking.$id}
-                  className="bg-white p-5 rounded-2xl border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm"
+                  className="bg-white p-5 rounded-2xl border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm hover:shadow-md transition-all"
                 >
                   <div className="flex items-center gap-4">
-                    {/* Date Box */}
                     <div className="bg-gray-50 p-3 rounded-xl text-center min-w-[70px]">
                       <span className="block text-xs font-bold text-gray-400 uppercase">
                         {format(parseISO(booking.start_time), "MMM")}
@@ -139,7 +161,6 @@ export default function ClientDashboard() {
                         {format(parseISO(booking.start_time), "d")}
                       </span>
                     </div>
-
                     <div>
                       <h3 className="font-bold text-gray-800">
                         {booking.therapist?.full_name}
@@ -156,7 +177,7 @@ export default function ClientDashboard() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 w-full md:w-auto border-t md:border-0 pt-4 md:pt-0 border-gray-100">
                     {booking.status === "confirmed" ? (
                       <span className="text-xs bg-green-50 text-green-700 px-3 py-1 rounded-full font-medium border border-green-100">
                         Completed
@@ -166,9 +187,16 @@ export default function ClientDashboard() {
                         {booking.status.replace("_", " ")}
                       </span>
                     )}
-                    <button className="text-sm font-medium text-secondary hover:underline px-2">
-                      View Notes
-                    </button>
+
+                    {/* View Summary Button */}
+                    {booking.shared_summary && (
+                      <button
+                        onClick={() => setViewNoteBooking(booking)}
+                        className="text-sm font-bold text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg flex items-center gap-1 transition-colors"
+                      >
+                        <BookOpen size={14} /> View Notes
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -191,18 +219,31 @@ export default function ClientDashboard() {
             onSuccess={refreshData}
           />
         )}
+
+        {/* NEW MODALS */}
+        {viewNoteBooking && (
+          <NotesModal
+            booking={viewNoteBooking}
+            onClose={() => setViewNoteBooking(null)}
+          />
+        )}
+        {showHomework && (
+          <HomeworkModal
+            homeworkItems={homework}
+            onClose={() => setShowHomework(false)}
+          />
+        )}
       </div>
     </div>
   );
 }
 
-// "Active Ticket" Component
+// "Active Ticket" Component (Implicitly included as before)
 function ActiveTicket({ booking, onPrepClick, onPayClick }) {
   const isOnline = booking.mode === "online";
   const startTime = parseISO(booking.start_time);
-  const status = booking.status; // pending_approval, awaiting_payment, payment_verification, confirmed, cancelled
+  const status = booking.status;
 
-  // Handle Cancelled/Declined visual state specially
   if (status === "cancelled") {
     return (
       <div className="bg-gray-50 p-6 rounded-3xl border border-gray-200 opacity-75 flex items-center justify-between">
@@ -230,7 +271,6 @@ function ActiveTicket({ booking, onPrepClick, onPayClick }) {
 
   return (
     <div className="bg-white rounded-3xl border border-gray-200 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col md:flex-row">
-      {/* Left: Time & Type */}
       <div
         className={`text-white p-6 md:w-48 flex flex-col justify-between shrink-0 relative overflow-hidden ${
           status === "confirmed" ? "bg-[#2D2D2D]" : "bg-gray-400"
@@ -254,7 +294,6 @@ function ActiveTicket({ booking, onPrepClick, onPayClick }) {
         </div>
       </div>
 
-      {/* Right: Details & Action */}
       <div className="p-6 md:p-8 flex-1 flex flex-col md:flex-row justify-between gap-6 items-start md:items-center">
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-2">
@@ -277,8 +316,6 @@ function ActiveTicket({ booking, onPrepClick, onPayClick }) {
               <p className="text-xs text-gray-500">Licensed Therapist</p>
             </div>
           </div>
-
-          {/* STATUS INDICATORS */}
           <div className="flex items-center gap-2 mt-4 text-xs font-medium">
             {status === "pending_approval" && (
               <span className="text-orange-600 bg-orange-50 px-2 py-1 rounded flex items-center gap-1">
@@ -317,38 +354,22 @@ function ActiveTicket({ booking, onPrepClick, onPayClick }) {
               Request Sent
             </button>
           )}
-
           {status === "awaiting_payment" && (
-            <>
-              <button
-                onClick={onPayClick}
-                className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors text-center flex items-center justify-center gap-2 shadow-lg shadow-blue-200"
-              >
-                <Wallet size={18} /> Complete Payment
-              </button>
-              <a
-                href={`mailto:support@therapyconnect.in?subject=Payment Issue Booking ${booking.$id}`}
-                className="text-xs text-center text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"
-              >
-                <ShieldAlert size={12} /> Report Issue
-              </a>
-            </>
+            <button
+              onClick={onPayClick}
+              className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors text-center flex items-center justify-center gap-2 shadow-lg shadow-blue-200"
+            >
+              <Wallet size={18} /> Complete Payment
+            </button>
           )}
-
           {status === "payment_verification" && (
-            <div className="text-center">
-              <button
-                disabled
-                className="bg-purple-100 text-purple-600 px-6 py-3 rounded-xl font-bold cursor-not-allowed w-full"
-              >
-                Verifying...
-              </button>
-              <p className="text-[10px] text-gray-400 mt-2 max-w-[150px] leading-tight">
-                Manual verification by therapist. This usually takes 2-4 hours.
-              </p>
-            </div>
+            <button
+              disabled
+              className="bg-purple-100 text-purple-600 px-6 py-3 rounded-xl font-bold cursor-not-allowed text-center"
+            >
+              Verifying...
+            </button>
           )}
-
           {status === "confirmed" && (
             <>
               {isOnline ? (
@@ -365,18 +386,16 @@ function ActiveTicket({ booking, onPrepClick, onPayClick }) {
                     booking.therapist?.clinic_address
                   )}`}
                   target="_blank"
-                  rel="noopener noreferrer"
                   className="bg-gray-100 text-gray-600 px-6 py-3 rounded-xl font-bold hover:bg-gray-200 transition-colors text-center flex items-center justify-center gap-2"
                 >
                   <MapPin size={18} /> View Address
                 </a>
               )}
-
               <button
                 onClick={onPrepClick}
                 className="border border-gray-200 text-gray-600 px-6 py-3 rounded-xl font-medium hover:border-secondary hover:text-secondary transition-colors text-center flex items-center justify-center gap-2"
               >
-                <Sparkles size={18} />
+                <Sparkles size={18} />{" "}
                 {booking.client_journal ? "Update Prep" : "Prepare"}
               </button>
             </>
@@ -386,6 +405,3 @@ function ActiveTicket({ booking, onPrepClick, onPayClick }) {
     </div>
   );
 }
-
-// Helper icon component
-import { ShieldAlert } from "lucide-react";
