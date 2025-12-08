@@ -9,6 +9,7 @@ import {
   Sparkles,
   Inbox,
   Users,
+  FileText,
 } from "lucide-react";
 
 export default function TherapistNav({ user }) {
@@ -17,7 +18,8 @@ export default function TherapistNav({ user }) {
   const navItems = [
     { name: "Overview", href: "/therapist/dashboard", icon: LayoutDashboard },
     { name: "Requests", href: "/therapist/requests", icon: Inbox },
-    { name: "My Clients", href: "/therapist/clients", icon: Users }, // NEW
+    { name: "My Clients", href: "/therapist/clients", icon: Users },
+    { name: "Invoices", href: "/therapist/invoices", icon: FileText }, // NEW
     { name: "My Schedule", href: "/therapist/schedule", icon: Calendar },
     { name: "Settings", href: "/therapist/settings", icon: Settings },
   ];
@@ -27,9 +29,7 @@ export default function TherapistNav({ user }) {
 
   return (
     <>
-      {/* --- DESKTOP SIDEBAR --- */}
       <aside className="hidden md:flex flex-col w-72 bg-[#F2F5F4] border-r border-gray-200/60 h-[calc(100vh-5rem)] fixed left-0 top-20 z-30">
-        {/* Header: User Card */}
         <div className="p-6 pb-2">
           <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100/50">
             <div className="flex items-center gap-3">
@@ -49,7 +49,6 @@ export default function TherapistNav({ user }) {
           </div>
         </div>
 
-        {/* Navigation Links */}
         <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
           <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
             Menu
@@ -78,7 +77,6 @@ export default function TherapistNav({ user }) {
             </Link>
           ))}
 
-          {/* Decorative Promo */}
           <div className="mt-8 mx-2 bg-gradient-to-br from-secondary/80 to-secondary text-white p-5 rounded-2xl relative overflow-hidden shadow-lg shadow-secondary/20">
             <Sparkles
               className="absolute top-2 right-2 text-white/20"
@@ -92,9 +90,9 @@ export default function TherapistNav({ user }) {
         </nav>
       </aside>
 
-      {/* --- MOBILE BOTTOM BAR --- */}
+      {/* Mobile Bottom Bar */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-gray-200 px-6 py-4 z-50 flex justify-between items-center shadow-[0_-4px_20px_rgba(0,0,0,0.03)] safe-area-pb">
-        {navItems.map((item) => (
+        {navItems.slice(0, 4).map((item) => (
           <Link
             key={item.href}
             href={item.href}

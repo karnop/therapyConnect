@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import InvoiceTrigger from "@/components/invoice/InvoiceTrigger";
 
 export default async function SessionDetailsPage({ params }) {
   const { id } = params;
@@ -18,7 +19,7 @@ export default async function SessionDetailsPage({ params }) {
 
   if (!data) return notFound();
 
-  const { booking, client, history, therapist } = data; // Added therapist here
+  const { booking, client, history, therapist } = data;
   const isOnline = booking.mode === "online";
 
   return (
@@ -30,6 +31,14 @@ export default async function SessionDetailsPage({ params }) {
       >
         <ArrowLeft size={18} /> Back to Dashboard
       </Link>
+
+      {booking.status === "confirmed" && (
+        <InvoiceTrigger
+          booking={booking}
+          client={client}
+          therapist={therapist}
+        />
+      )}
 
       <div className="grid lg:grid-cols-3 gap-8">
         {/* --- LEFT: CLIENT DOSSIER & PREP --- */}

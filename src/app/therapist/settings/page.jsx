@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getTherapistData, updateTherapistProfile } from "@/actions/therapist";
+import { getInvoiceSettings, updateInvoiceSettings } from "@/actions/invoice";
 import {
   Save,
   Loader2,
@@ -15,6 +16,7 @@ import {
   Check,
   ChevronDown,
   Wallet,
+  FileBadge,
 } from "lucide-react";
 import Image from "next/image";
 import { SPECIALTIES_LIST, METRO_STATIONS } from "@/lib/constants";
@@ -24,9 +26,21 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("profile");
+
+  // Data State
   const [data, setData] = useState({ profile: {}, rates: [], avatarUrl: null });
   const [previewImage, setPreviewImage] = useState(null);
 
+  // Invoice State (Controlled Inputs)
+  const [invoiceForm, setInvoiceForm] = useState({
+    qualification: "",
+    rci_number: "",
+    business_address: "",
+    upi_id: "",
+    payment_instructions: "", // Shared between Practice & Invoice tab logic
+  });
+
+  // UI States
   const [selectedSpecialties, setSelectedSpecialties] = useState([]);
   const [metroQuery, setMetroQuery] = useState("");
   const [filteredMetros, setFilteredMetros] = useState([]);
@@ -34,27 +48,58 @@ export default function SettingsPage() {
 
   const fileInputRef = useRef(null);
 
+  // --- 1. FETCH DATA ---
   useEffect(() => {
-    getTherapistData().then((res) => {
-      if (res) {
-        setData(res);
-        setPreviewImage(res.avatarUrl);
-        if (res.profile.specialties) {
-          setSelectedSpecialties(res.profile.specialties);
+    const fetchData = async () => {
+      try {
+        const [therapistRes, invoiceRes] = await Promise.all([
+          getTherapistData(),
+          getInvoiceSettings(),
+        ]);
+
+        // Hydrate Profile Data
+        if (therapistRes) {
+          setData(therapistRes);
+          setPreviewImage(therapistRes.avatarUrl);
+          if (therapistRes.profile.specialties) {
+            setSelectedSpecialties(therapistRes.profile.specialties);
+          }
+          if (therapistRes.profile.metro_station) {
+            setMetroQuery(therapistRes.profile.metro_station);
+          }
+          // Sync payment instructions from User Profile to Local State
+          setInvoiceForm((prev) => ({
+            ...prev,
+            payment_instructions:
+              therapistRes.profile.payment_instructions || "",
+          }));
         }
-        if (res.profile.metro_station) {
-          setMetroQuery(res.profile.metro_station);
+
+        // Hydrate Invoice Data
+        if (invoiceRes) {
+          setInvoiceForm((prev) => ({
+            ...prev,
+            qualification: invoiceRes.qualification || "",
+            rci_number: invoiceRes.rci_number || "",
+            business_address: invoiceRes.business_address || "",
+            upi_id: invoiceRes.upi_id || "",
+          }));
         }
+      } catch (error) {
+        console.error("Error fetching settings:", error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    };
+    fetchData();
   }, []);
+
+  // --- 2. HANDLERS ---
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      const url = URL.createObjectURL(file);
-      setPreviewImage(url);
+      setPreviewImage(URL.createObjectURL(file));
     }
   };
 
@@ -86,11 +131,28 @@ export default function SettingsPage() {
     setShowMetroDropdown(false);
   };
 
+  // Handle Controlled Inputs for Invoice/Payment
+  const handleInvoiceChange = (e) => {
+    const { name, value } = e.target;
+    setInvoiceForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // --- 3. SUBMIT LOGIC ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
     const formData = new FormData(e.currentTarget);
+
+    // Explicitly append controlled invoice data to formData if needed,
+    // or rely on the inputs having `name` attributes which FormData picks up automatically.
+    // Since the inputs are in the DOM (just hidden with CSS), FormData works for all tabs.
+
+    // Update Profile & Practice Info
     await updateTherapistProfile(formData);
+
+    // Update Invoice Settings
+    await updateInvoiceSettings(formData);
+
     setSaving(false);
     alert("Settings updated successfully!");
     router.refresh();
@@ -115,39 +177,34 @@ export default function SettingsPage() {
         </p>
       </div>
 
+      {/* Tabs Navigation */}
       <div className="flex gap-6 border-b border-gray-200 mb-8 overflow-x-auto">
-        <button
-          onClick={() => setActiveTab("profile")}
-          className={`pb-4 text-sm font-semibold transition-all relative shrink-0 ${
-            activeTab === "profile"
-              ? "text-secondary"
-              : "text-gray-400 hover:text-gray-600"
-          }`}
-        >
-          Personal Profile
-          {activeTab === "profile" && (
-            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-secondary rounded-full"></div>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab("practice")}
-          className={`pb-4 text-sm font-semibold transition-all relative shrink-0 ${
-            activeTab === "practice"
-              ? "text-secondary"
-              : "text-gray-400 hover:text-gray-600"
-          }`}
-        >
-          Practice & Logistics
-          {activeTab === "practice" && (
-            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-secondary rounded-full"></div>
-          )}
-        </button>
+        {[
+          { id: "profile", label: "Personal Profile" },
+          { id: "practice", label: "Practice & Logistics" },
+          { id: "billing", label: "Billing & Compliance" },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`pb-4 text-sm font-semibold transition-all relative shrink-0 ${
+              activeTab === tab.id
+                ? "text-secondary"
+                : "text-gray-400 hover:text-gray-600"
+            }`}
+          >
+            {tab.label}
+            {activeTab === tab.id && (
+              <div className="absolute bottom-0 left-0 w-full h-0.5 bg-secondary rounded-full"></div>
+            )}
+          </button>
+        ))}
       </div>
 
       <form onSubmit={handleSubmit} className="max-w-3xl pb-40 md:pb-24">
         {/* --- TAB 1: PERSONAL PROFILE --- */}
         <div className={activeTab === "profile" ? "block space-y-8" : "hidden"}>
-          {/* Same as before... Avatar, Bio, Specialties */}
+          {/* Avatar & Name */}
           <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-8 items-start">
             <div
               className="relative group cursor-pointer shrink-0"
@@ -190,6 +247,7 @@ export default function SettingsPage() {
                   name="fullName"
                   defaultValue={data.profile.full_name}
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all"
+                  placeholder="Dr. John Doe"
                 />
               </div>
               <div>
@@ -206,6 +264,7 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* Bio & Specialties */}
           <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -216,8 +275,10 @@ export default function SettingsPage() {
                 rows={6}
                 defaultValue={data.profile.bio}
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all resize-none"
+                placeholder="Share your background..."
               />
             </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-3">
                 Specialties
@@ -257,7 +318,36 @@ export default function SettingsPage() {
         <div
           className={activeTab === "practice" ? "block space-y-8" : "hidden"}
         >
-          {/* Payment Details (NEW) */}
+          {/* Pricing */}
+          <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-green-50 text-green-600 rounded-lg">
+                <DollarSign size={20} />
+              </div>
+              <h2 className="text-lg font-bold text-primary">
+                Session Pricing
+              </h2>
+            </div>
+            <div className="max-w-xs">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                60 Minute Session
+              </label>
+              <div className="relative">
+                <span className="absolute left-4 top-3.5 text-gray-400 font-medium">
+                  ₹
+                </span>
+                <input
+                  type="number"
+                  name="price60"
+                  defaultValue={rate60}
+                  className="w-full pl-8 px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all font-medium"
+                  placeholder="2000"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Payment Instructions (Shared State) */}
           <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
               <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
@@ -274,44 +364,15 @@ export default function SettingsPage() {
               <textarea
                 name="paymentInstructions"
                 rows={4}
-                defaultValue={data.profile.payment_instructions}
+                value={invoiceForm.payment_instructions} // Controlled
+                onChange={handleInvoiceChange}
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all resize-none"
-                placeholder="e.g. Please UPI to 9876543210@okicici. Or 'Cash accepted at clinic'. This will be shown to clients AFTER you accept their request."
+                placeholder="e.g. Please UPI to 9876543210@okicici..."
               />
               <p className="text-xs text-gray-400 mt-2">
-                Clients will be asked to follow these instructions to pay you
-                directly.
+                SHOWN TO CLIENTS: Instructions on how to pay you after you
+                accept their request.
               </p>
-            </div>
-          </div>
-
-          {/* Pricing */}
-          <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-green-50 text-green-600 rounded-lg">
-                <DollarSign size={20} />
-              </div>
-              <h2 className="text-lg font-bold text-primary">
-                Session Pricing
-              </h2>
-            </div>
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  60 Minute Session
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-3.5 text-gray-400 font-medium">
-                    ₹
-                  </span>
-                  <input
-                    type="number"
-                    name="price60"
-                    defaultValue={rate60}
-                    className="w-full pl-8 px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all font-medium"
-                  />
-                </div>
-              </div>
             </div>
           </div>
 
@@ -332,6 +393,7 @@ export default function SettingsPage() {
                 name="meetingLink"
                 defaultValue={data.profile.meeting_link || ""}
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all"
+                placeholder="https://meet.google.com/..."
               />
             </div>
           </div>
@@ -356,8 +418,10 @@ export default function SettingsPage() {
                   name="clinicAddress"
                   defaultValue={data.profile.clinic_address || ""}
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all"
+                  placeholder="e.g. B-44, Defence Colony, New Delhi"
                 />
               </div>
+
               <div className="relative">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Nearest Metro Station
@@ -377,6 +441,7 @@ export default function SettingsPage() {
                       setTimeout(() => setShowMetroDropdown(false), 200)
                     }
                     className="w-full pl-11 px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all"
+                    placeholder="Start typing station name..."
                   />
                   <div className="absolute right-4 top-3.5 pointer-events-none text-gray-400">
                     <ChevronDown size={18} />
@@ -404,6 +469,91 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* --- TAB 3: BILLING & COMPLIANCE --- */}
+        <div className={activeTab === "billing" ? "block space-y-8" : "hidden"}>
+          <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
+                <FileBadge size={20} />
+              </div>
+              <h2 className="text-lg font-bold text-primary">
+                Invoice Compliance
+              </h2>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Full Qualification
+                </label>
+                <input
+                  name="qualification"
+                  value={invoiceForm.qualification}
+                  onChange={handleInvoiceChange}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary outline-none text-sm"
+                  placeholder="e.g. M.Phil Clinical Psychology"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  RCI License Number
+                </label>
+                <input
+                  name="rci"
+                  value={invoiceForm.rci_number}
+                  onChange={handleInvoiceChange}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary outline-none text-sm"
+                  placeholder="e.g. A78945"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Required for clients to claim insurance.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Business Address (For Bill Header)
+                </label>
+                <textarea
+                  name="address"
+                  rows={2}
+                  value={invoiceForm.business_address}
+                  onChange={handleInvoiceChange}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary outline-none text-sm resize-none"
+                  placeholder="Clinic Address for the Bill"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                <Wallet size={20} />
+              </div>
+              <h2 className="text-lg font-bold text-primary">
+                Collection Details
+              </h2>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                UPI ID (For QR Code)
+              </label>
+              <input
+                name="upi"
+                value={invoiceForm.upi_id}
+                onChange={handleInvoiceChange}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary outline-none text-sm"
+                placeholder="e.g. doctor@okicici"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                This generates the scannable QR on the PDF.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Floating Save Bar */}
         <div className="fixed bottom-20 md:bottom-0 right-0 left-0 md:left-72 p-4 bg-white/80 backdrop-blur-md border-t border-gray-200 flex justify-end z-40 transition-all">
           <button
             type="submit"
