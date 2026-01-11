@@ -1,44 +1,65 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getInvoiceSettings, updateInvoiceSettings } from "@/actions/invoice";
-import { getTherapistDashboardData } from "@/actions/dashboard"; // To get booking history for the list
-import { FileBadge, Wallet, Save, Loader2, FileText } from "lucide-react";
+import {
+  getInvoiceSettings,
+  updateInvoiceSettings,
+  getBillableSessions,
+} from "@/actions/invoice";
+import { getTherapistData } from "@/actions/therapist";
+import {
+  FileBadge,
+  Wallet,
+  Save,
+  Loader2,
+  FileText,
+  FilePlus,
+  ChevronLeft,
+  ChevronRight,
+  Calendar as CalendarIcon,
+} from "lucide-react";
 import InvoiceModal from "@/components/invoice/InvoiceModal";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, isSameDay, addDays, subDays } from "date-fns";
 
 export default function InvoicesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState({});
-  const [recentSessions, setRecentSessions] = useState([]);
+  const [allSessions, setAllSessions] = useState([]); // Store all fetched sessions
+  const [filteredSessions, setFilteredSessions] = useState([]); // Store daily view
+  const [therapistProfile, setTherapistProfile] = useState(null);
 
-  // For Modal
+  // Date State
+  const [selectedDate, setSelectedDate] = useState(new Date());
+
+  // Modal State
   const [selectedBooking, setSelectedBooking] = useState(null);
+  const [showCustomModal, setShowCustomModal] = useState(false);
 
   useEffect(() => {
     const init = async () => {
-      const [invSettings, dashData] = await Promise.all([
+      const [invSettings, billable, tData] = await Promise.all([
         getInvoiceSettings(),
-        getTherapistDashboardData(),
+        getBillableSessions(),
+        getTherapistData(),
       ]);
 
-      // For the list, we want confirmed/completed sessions.
-      // Reusing dashboard logic but filtering for confirmed.
-      // In a real app, we'd have a dedicated 'getBillingHistory' action.
-      // Using upcoming + requests is wrong, let's just use what we have or fetch history.
-      // For MVP speed, let's assume the dashboard data includes some relevant sessions
-      // OR ideally fetch a dedicated list. I'll mock the fetch for now to keep it simple or use upcoming.
       setSettings(invSettings || {});
-      // Mocking billing history from upcoming for demo, normally this is past sessions
-      setRecentSessions(
-        dashData.upcoming.filter((s) => s.status === "confirmed")
-      );
+      setAllSessions(billable || []);
+      if (tData) setTherapistProfile(tData.profile);
 
       setLoading(false);
     };
     init();
   }, []);
+
+  // Filter sessions whenever selectedDate or allSessions changes
+  useEffect(() => {
+    const daily = allSessions.filter((session) =>
+      isSameDay(parseISO(session.start_time), selectedDate)
+    );
+    setFilteredSessions(daily);
+  }, [selectedDate, allSessions]);
 
   const handleSaveSettings = async (e) => {
     e.preventDefault();
@@ -49,6 +70,10 @@ export default function InvoicesPage() {
     alert("Invoice settings saved!");
   };
 
+  // Date Nav Handlers
+  const prevDay = () => setSelectedDate((d) => subDays(d, 1));
+  const nextDay = () => setSelectedDate((d) => addDays(d, 1));
+
   if (loading)
     return (
       <div className="flex justify-center p-20">
@@ -58,11 +83,21 @@ export default function InvoicesPage() {
 
   return (
     <div className="pb-20 space-y-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-primary">Invoices & Billing</h1>
-        <p className="text-gray-500">
-          Configure your legal details and generate bills.
-        </p>
+      <div className="flex flex-col md:flex-row justify-between md:items-end gap-4 mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-primary">
+            Invoices & Billing
+          </h1>
+          <p className="text-gray-500">
+            Configure your legal details and generate bills.
+          </p>
+        </div>
+        <button
+          onClick={() => setShowCustomModal(true)}
+          className="bg-primary text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-800 transition-colors flex items-center gap-2 shadow-lg shadow-primary/20"
+        >
+          <FilePlus size={18} /> Create Custom Invoice
+        </button>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-8">
@@ -103,7 +138,7 @@ export default function InvoicesPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Business Address
+                  Business Address (For Bill Header)
                 </label>
                 <textarea
                   name="address"
@@ -125,7 +160,6 @@ export default function InvoicesPage() {
                 Collection Details
               </h2>
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 UPI ID (For QR Code)
@@ -136,9 +170,6 @@ export default function InvoicesPage() {
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary outline-none text-sm"
                 placeholder="e.g. doctor@okicici"
               />
-              <p className="text-xs text-gray-400 mt-1">
-                This generates the scannable QR on the PDF.
-              </p>
             </div>
           </div>
 
@@ -156,59 +187,111 @@ export default function InvoicesPage() {
           </button>
         </form>
 
-        {/* --- RIGHT: RECENT BILLABLE ITEMS --- */}
+        {/* --- RIGHT: DAILY BILLING VIEW --- */}
         <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm h-fit">
-          <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <FileText size={18} className="text-gray-400" /> Ready to Bill
-          </h3>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="font-bold text-gray-800 flex items-center gap-2">
+              <FileText size={18} className="text-gray-400" /> Daily Billing
+            </h3>
 
-          {recentSessions.length > 0 ? (
+            {/* Date Navigator */}
+            <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-xl">
+              <button
+                onClick={prevDay}
+                className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg text-gray-500 transition-all"
+              >
+                <ChevronLeft size={16} />
+              </button>
+
+              <div className="relative">
+                <div className="flex items-center gap-2 px-2 text-sm font-bold text-gray-700 min-w-[120px] justify-center cursor-pointer">
+                  <CalendarIcon size={14} className="text-secondary" />
+                  {format(selectedDate, "MMM dd, yyyy")}
+                </div>
+                {/* Hidden native date picker overlay for quick jump */}
+                <input
+                  type="date"
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                  onChange={(e) =>
+                    e.target.value && setSelectedDate(new Date(e.target.value))
+                  }
+                />
+              </div>
+
+              <button
+                onClick={nextDay}
+                className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg text-gray-500 transition-all"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+
+          {filteredSessions.length > 0 ? (
             <div className="space-y-3">
-              {recentSessions.map((session) => (
+              {filteredSessions.map((session) => (
                 <div
                   key={session.$id}
-                  className="p-4 rounded-xl border border-gray-100 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                  className="p-4 rounded-xl border border-gray-100 flex items-center justify-between hover:bg-gray-50 transition-colors group"
                 >
                   <div>
                     <p className="font-bold text-gray-900 text-sm">
-                      {session.client?.full_name}
+                      {session.clientName}
                     </p>
-                    <p className="text-xs text-gray-500">
-                      {format(parseISO(session.start_time), "MMM d")} •{" "}
-                      {session.mode}
+                    <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                      {format(parseISO(session.start_time), "h:mm a")}
+                      <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+                      <span className="capitalize">{session.mode}</span>
                     </p>
                   </div>
                   <button
                     onClick={() => setSelectedBooking(session)}
-                    className="bg-gray-100 text-gray-600 hover:bg-gray-200 p-2 rounded-lg transition-colors"
-                    title="Generate Invoice"
+                    className="bg-white border border-gray-200 text-gray-600 hover:text-secondary hover:border-secondary px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm"
                   >
-                    <FileText size={16} />
+                    Generate
                   </button>
                 </div>
               ))}
+              <div className="pt-4 border-t border-gray-100 mt-4 text-center">
+                <p className="text-xs text-gray-400">
+                  Showing {filteredSessions.length} billable session(s)
+                </p>
+              </div>
             </div>
           ) : (
-            <div className="text-center py-10 text-gray-400 text-sm">
-              No confirmed sessions found recently.
+            <div className="text-center py-12 flex flex-col items-center justify-center border-2 border-dashed border-gray-100 rounded-2xl bg-gray-50/50">
+              <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mb-3 shadow-sm text-gray-300">
+                <CalendarIcon size={20} />
+              </div>
+              <p className="text-gray-500 text-sm font-medium">
+                No sessions found.
+              </p>
+              <p className="text-gray-400 text-xs mt-1">
+                There were no confirmed bookings on <br />{" "}
+                {format(selectedDate, "MMMM do")}.
+              </p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Invoice Modal */}
+      {/* Invoice Modal (From History) */}
       {selectedBooking && (
         <InvoiceModal
           booking={selectedBooking}
-          // We construct minimal objects since we have the data
-          client={{ full_name: selectedBooking.client?.full_name }}
-          // We need therapist name, assuming context or passing empty will trigger defaults
-          therapist={{
-            full_name: "Me",
-            clinic_address: settings.business_address,
-          }}
+          therapist={therapistProfile}
           invoiceSettings={settings}
           onClose={() => setSelectedBooking(null)}
+        />
+      )}
+
+      {/* Custom Invoice Modal */}
+      {showCustomModal && (
+        <InvoiceModal
+          isCustom={true}
+          therapist={therapistProfile}
+          invoiceSettings={settings}
+          onClose={() => setShowCustomModal(false)}
         />
       )}
     </div>

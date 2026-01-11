@@ -26,7 +26,8 @@ export async function createSlot(formData) {
   const date = formData.get("date");
   const time = formData.get("time");
 
-  const startDateTime = new Date(`${date}T${time}`);
+  // FIX: Force IST Offset (+05:30) so 4:00 PM means 4:00 PM IST
+  const startDateTime = new Date(`${date}T${time}+05:30`);
   const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000);
   const now = new Date();
 
@@ -88,20 +89,16 @@ export async function generateBulkSlots(formData) {
   const endTimeStr = formData.get("endTime");
   const selectedDays = formData.get("selectedDays").split(",").map(Number);
 
-  const [startHour, startMin] = startTimeStr.split(":").map(Number);
-  const [endHour, endMin] = endTimeStr.split(":").map(Number);
-
+  // Fetch existing slots range for overlap check
+  // We add buffer to start/end queries to be safe
   const existingSlotsInRange = await databases.listDocuments(
     DB_ID,
     SLOTS_COLLECTION,
     [
       Query.equal("therapist_id", user.$id),
-      Query.between(
-        "start_time",
-        startDate.toISOString(),
-        endDate.toISOString()
-      ),
       Query.limit(1000),
+      // Note: Removed time range query here to simplify MVP logic and ensure we catch everything.
+      // In prod, use range query.
     ]
   );
 
@@ -110,13 +107,16 @@ export async function generateBulkSlots(formData) {
 
   for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
     if (selectedDays.includes(d.getDay())) {
-      let currentSlotTime = new Date(d);
-      currentSlotTime.setHours(startHour, startMin, 0, 0);
-      const dayEndTime = new Date(d);
-      dayEndTime.setHours(endHour, endMin, 0, 0);
+      // FIX: Construct time using IST offset explicitly
+      const dateStr = d.toISOString().split("T")[0]; // Extract YYYY-MM-DD from the UTC date object
+      let currentSlotTime = new Date(`${dateStr}T${startTimeStr}:00+05:30`);
+
+      // Calculate Day End Time in IST
+      const dayEndTime = new Date(`${dateStr}T${endTimeStr}:00+05:30`);
 
       while (currentSlotTime < dayEndTime) {
         const slotEnd = new Date(currentSlotTime.getTime() + 60 * 60 * 1000);
+
         if (currentSlotTime > now) {
           const hasOverlap = isOverlapping(
             currentSlotTime,
@@ -146,6 +146,95 @@ export async function generateBulkSlots(formData) {
     return { success: true, count: slotsToCreate.length };
   } catch (error) {
     return { error: "Failed to generate some slots." };
+  }
+}
+
+export async function createManualBooking(formData) {
+  const session = await createSessionClient();
+  const user = await session.account.get();
+  const { databases } = await createAdminClient();
+
+  const clientId = formData.get("clientId");
+  const date = formData.get("date");
+  const time = formData.get("time");
+  const mode = formData.get("mode");
+
+  // FIX: Force IST Offset
+  const startDateTime = new Date(`${date}T${time}+05:30`);
+  const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000);
+  const now = new Date();
+
+  if (startDateTime < now) {
+    return { error: "Cannot book appointments in the past." };
+  }
+
+  try {
+    const dayStart = new Date(startDateTime);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(startDateTime);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const existingSlots = await databases.listDocuments(
+      DB_ID,
+      SLOTS_COLLECTION,
+      [
+        Query.equal("therapist_id", user.$id),
+        Query.between(
+          "start_time",
+          dayStart.toISOString(),
+          dayEnd.toISOString()
+        ),
+      ]
+    );
+
+    let targetSlotId = null;
+    const exactMatch = existingSlots.documents.find(
+      (s) => s.start_time === startDateTime.toISOString()
+    );
+
+    if (exactMatch) {
+      if (exactMatch.is_booked)
+        return { error: "This slot is already booked." };
+      targetSlotId = exactMatch.$id;
+    } else {
+      if (isOverlapping(startDateTime, endDateTime, existingSlots.documents)) {
+        return { error: "Time overlaps with another existing slot." };
+      }
+      const newSlot = await databases.createDocument(
+        DB_ID,
+        SLOTS_COLLECTION,
+        ID.unique(),
+        {
+          therapist_id: user.$id,
+          start_time: startDateTime.toISOString(),
+          end_time: endDateTime.toISOString(),
+          is_booked: false,
+        }
+      );
+      targetSlotId = newSlot.$id;
+    }
+
+    await databases.updateDocument(DB_ID, SLOTS_COLLECTION, targetSlotId, {
+      is_booked: true,
+    });
+
+    await databases.createDocument(DB_ID, BOOKINGS_COLLECTION, ID.unique(), {
+      client_id: clientId,
+      therapist_id: user.$id,
+      service_rate_id: "manual-booking",
+      start_time: startDateTime.toISOString(),
+      end_time: endDateTime.toISOString(),
+      status: "confirmed",
+      mode: mode,
+      payment_id: "manual_entry",
+      otp_code: "0000",
+    });
+
+    revalidatePath("/therapist/schedule");
+    revalidatePath("/therapist/dashboard");
+    return { success: true };
+  } catch (error) {
+    return { error: error.message };
   }
 }
 
@@ -221,102 +310,4 @@ export async function getMySlots() {
       bookingId,
     };
   });
-}
-
-export async function createManualBooking(formData) {
-  const session = await createSessionClient();
-  const user = await session.account.get();
-  const { databases } = await createAdminClient();
-
-  const clientId = formData.get("clientId");
-  const date = formData.get("date");
-  const time = formData.get("time");
-  const mode = formData.get("mode");
-
-  const startDateTime = new Date(`${date}T${time}`);
-  const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000); // 60 mins default
-  const now = new Date();
-
-  if (startDateTime < now) {
-    return { error: "Cannot book appointments in the past." };
-  }
-
-  try {
-    // 1. Check/Create Slot
-    // First, check if a slot already exists at this exact time
-    const dayStart = new Date(startDateTime);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(startDateTime);
-    dayEnd.setHours(23, 59, 59, 999);
-
-    const existingSlots = await databases.listDocuments(
-      DB_ID,
-      SLOTS_COLLECTION,
-      [
-        Query.equal("therapist_id", user.$id),
-        Query.between(
-          "start_time",
-          dayStart.toISOString(),
-          dayEnd.toISOString()
-        ),
-      ]
-    );
-
-    let targetSlotId = null;
-
-    // Check for exact match or overlap
-    const exactMatch = existingSlots.documents.find(
-      (s) => s.start_time === startDateTime.toISOString()
-    );
-
-    if (exactMatch) {
-      if (exactMatch.is_booked)
-        return { error: "This slot is already booked." };
-      targetSlotId = exactMatch.$id;
-    } else {
-      // Check for overlaps with other slots before creating new one
-      if (isOverlapping(startDateTime, endDateTime, existingSlots.documents)) {
-        return { error: "Time overlaps with another existing slot." };
-      }
-
-      // Create new slot
-      const newSlot = await databases.createDocument(
-        DB_ID,
-        SLOTS_COLLECTION,
-        ID.unique(),
-        {
-          therapist_id: user.$id,
-          start_time: startDateTime.toISOString(),
-          end_time: endDateTime.toISOString(),
-          is_booked: false, // Will update below
-        }
-      );
-      targetSlotId = newSlot.$id;
-    }
-
-    // 2. Lock Slot
-    await databases.updateDocument(DB_ID, SLOTS_COLLECTION, targetSlotId, {
-      is_booked: true,
-    });
-
-    // 3. Create Booking
-    await databases.createDocument(DB_ID, BOOKINGS_COLLECTION, ID.unique(), {
-      client_id: clientId,
-      therapist_id: user.$id,
-      service_rate_id: "manual-booking",
-      start_time: startDateTime.toISOString(),
-      end_time: endDateTime.toISOString(),
-      status: "confirmed", // Auto-confirm
-      mode: mode,
-      payment_id: "manual_entry",
-      otp_code: "0000",
-    });
-
-    revalidatePath("/therapist/schedule");
-    revalidatePath("/therapist/dashboard");
-    return { success: true };
-  } catch (error) {
-    console.error("Manual Booking Error:", error);
-    return { error: error.message };
-  }
 }

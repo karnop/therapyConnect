@@ -11,18 +11,32 @@ import {
   Loader2,
   ShieldCheck,
   FileCheck,
+  Edit3,
 } from "lucide-react";
 
 export default function InvoiceModal({
   booking,
-  client,
   therapist,
   invoiceSettings,
   onClose,
+  isCustom = false,
 }) {
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Editable State (Pre-fill if booking exists)
   const [useInitials, setUseInitials] = useState(false);
   const [serviceName, setServiceName] = useState("Psychotherapy Session");
+
+  // New Editable Fields
+  const [clientNameInput, setClientNameInput] = useState(
+    booking?.clientName || ""
+  );
+  const [amountInput, setAmountInput] = useState(booking?.amount || "2000");
+  const [invoiceDateInput, setInvoiceDateInput] = useState(
+    booking
+      ? format(new Date(booking.start_time), "yyyy-MM-dd")
+      : format(new Date(), "yyyy-MM-dd")
+  );
 
   const rci = invoiceSettings?.rci_number || "Pending";
   const qual = invoiceSettings?.qualification || "Clinical Psychologist";
@@ -32,35 +46,36 @@ export default function InvoiceModal({
     "Delhi NCR";
   const upiId = invoiceSettings?.upi_id;
 
-  // FIX: Ensure Therapist Name is real
-  const therapistName =
-    therapist.full_name && therapist.full_name !== "Me (Therapist)"
-      ? therapist.full_name
-      : "Dr. Therapist"; // Fallback
+  // Use the therapist object passed from parent
+  const therapistName = therapist.full_name || "Dr. Therapist";
 
   const generatePDF = async () => {
     setIsGenerating(true);
     const doc = new jsPDF();
 
-    const invoiceDate = new Date();
-    const invoiceNo = `INV-${format(invoiceDate, "yyyyMMdd")}-${booking.$id
-      .substring(0, 4)
-      .toUpperCase()}`;
-    const clientName = useInitials
-      ? client.full_name
+    // Generate Invoice Number
+    const dateStr = format(new Date(), "yyyyMMdd");
+    const uniqueSuffix =
+      booking?.$id?.substring(0, 4).toUpperCase() ||
+      Math.floor(1000 + Math.random() * 9000);
+    const invoiceNo = `INV-${dateStr}-${uniqueSuffix}`;
+
+    // Handle Client Name Anonymization
+    const finalClientName = useInitials
+      ? clientNameInput
           .split(" ")
           .map((n) => n[0])
           .join(".")
-      : client.full_name;
+      : clientNameInput;
 
     // --- DESIGN SYSTEM ---
-    const primaryColor = [107, 142, 120]; // #6B8E78 (Sage Green)
+    const primaryColor = [107, 142, 120]; // #6B8E78
     const grayColor = [100, 100, 100];
     const lightGray = [245, 245, 245];
 
-    // --- 1. HEADER (Green Bar) ---
+    // --- 1. HEADER ---
     doc.setFillColor(...primaryColor);
-    doc.rect(0, 0, 210, 40, "F"); // Full width header
+    doc.rect(0, 0, 210, 40, "F");
 
     doc.setFontSize(22);
     doc.setTextColor(255, 255, 255);
@@ -86,11 +101,10 @@ export default function InvoiceModal({
     y += 5;
     doc.text(`RCI License: ${rci}`, 20, y);
     y += 5;
-    // Handle multi-line address
     const splitAddress = doc.splitTextToSize(address, 80);
     doc.text(splitAddress, 20, y);
 
-    // --- 3. PATIENT INFO (Right Side) ---
+    // --- 3. PATIENT INFO ---
     y = 60;
     doc.setFontSize(10);
     doc.setTextColor(...grayColor);
@@ -100,18 +114,17 @@ export default function InvoiceModal({
     doc.setFontSize(12);
     doc.setTextColor(0, 0, 0);
     doc.setFont(undefined, "bold");
-    doc.text(clientName, 140, y);
+    doc.text(finalClientName, 140, y);
 
     y += 6;
     doc.setFontSize(10);
     doc.setFont(undefined, "normal");
     doc.setTextColor(...grayColor);
-    doc.text(`Date: ${format(invoiceDate, "dd MMM yyyy")}`, 140, y);
+    doc.text(`Date: ${format(new Date(), "dd MMM yyyy")}`, 140, y);
 
     // --- 4. TABLE ---
     y = 100;
 
-    // Header Row
     doc.setFillColor(...lightGray);
     doc.rect(20, y, 170, 10, "F");
 
@@ -121,25 +134,22 @@ export default function InvoiceModal({
     doc.text("Session Date", 110, y + 6);
     doc.text("Amount", 185, y + 6, { align: "right" });
 
-    // Data Row
     y += 18;
     doc.setFont(undefined, "normal");
     doc.text(serviceName, 25, y);
-    doc.text(format(new Date(booking.start_time), "dd MMM yyyy"), 110, y);
-    const amount = booking.amount || 2000;
-    doc.text(`INR ${amount}`, 185, y, { align: "right" });
+    doc.text(format(new Date(invoiceDateInput), "dd MMM yyyy"), 110, y);
 
-    // Line
+    doc.text(`INR ${amountInput}`, 185, y, { align: "right" });
+
     y += 10;
     doc.setDrawColor(220, 220, 220);
     doc.line(20, y, 190, y);
 
-    // Total
     y += 10;
     doc.setFontSize(12);
     doc.setFont(undefined, "bold");
     doc.text("Total", 140, y);
-    doc.text(`INR ${amount}`, 185, y, { align: "right" });
+    doc.text(`INR ${amountInput}`, 185, y, { align: "right" });
 
     // --- 5. QR CODE ---
     if (upiId) {
@@ -147,7 +157,7 @@ export default function InvoiceModal({
       try {
         const upiString = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(
           therapistName
-        )}&am=${amount}&cu=INR`;
+        )}&am=${amountInput}&cu=INR`;
         const qrDataUrl = await QRCode.toDataURL(upiString, { width: 100 });
         doc.addImage(qrDataUrl, "PNG", 20, y, 30, 30);
 
@@ -164,13 +174,9 @@ export default function InvoiceModal({
     // --- 6. FOOTER ---
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
-    doc.text(
-      "This is a computer-generated invoice. Not valid for medico-legal purposes unless signed.",
-      105,
-      280,
-      { align: "center" }
-    );
-    doc.text("Generated via TherapyConnect", 105, 285, { align: "center" });
+    doc.text("This is a computer-generated invoice.", 105, 280, {
+      align: "center",
+    });
 
     doc.save(`${invoiceNo}.pdf`);
     setIsGenerating(false);
@@ -178,16 +184,13 @@ export default function InvoiceModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden relative">
-        <div className="bg-[#2D2D2D] p-6 flex justify-between items-center text-white">
+      <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden relative max-h-[90vh] overflow-y-auto">
+        <div className="bg-[#2D2D2D] p-6 flex justify-between items-center text-white sticky top-0 z-10">
           <div>
             <h3 className="text-lg font-bold flex items-center gap-2">
               <FileCheck size={20} className="text-secondary" />
-              Professional Invoice
+              {isCustom ? "Custom Invoice" : "Generate Invoice"}
             </h3>
-            <p className="text-xs text-white/60 mt-1">
-              Generate a compliant PDF for your client.
-            </p>
           </div>
           <button
             onClick={onClose}
@@ -211,6 +214,32 @@ export default function InvoiceModal({
           )}
 
           <div className="space-y-4">
+            {/* Editable Fields */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Client Name
+                </label>
+                <input
+                  type="text"
+                  value={clientNameInput}
+                  onChange={(e) => setClientNameInput(e.target.value)}
+                  className="w-full p-3 rounded-xl border border-gray-200 text-sm focus:border-secondary outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Amount (₹)
+                </label>
+                <input
+                  type="number"
+                  value={amountInput}
+                  onChange={(e) => setAmountInput(e.target.value)}
+                  className="w-full p-3 rounded-xl border border-gray-200 text-sm focus:border-secondary outline-none"
+                />
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">
                 Service Description
@@ -222,6 +251,19 @@ export default function InvoiceModal({
                 className="w-full p-3 rounded-xl border border-gray-200 text-sm focus:border-secondary outline-none"
               />
             </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">
+                Session Date
+              </label>
+              <input
+                type="date"
+                value={invoiceDateInput}
+                onChange={(e) => setInvoiceDateInput(e.target.value)}
+                className="w-full p-3 rounded-xl border border-gray-200 text-sm focus:border-secondary outline-none"
+              />
+            </div>
+
             <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
               <input
                 type="checkbox"
@@ -234,7 +276,7 @@ export default function InvoiceModal({
                   Anonymize Client
                 </span>
                 <span className="block text-xs text-gray-500">
-                  Use initials (e.g. &apos;R.S.&apos;) on bill.
+                  Use initials (e.g. &quot;R.S.&quot;) on bill.
                 </span>
               </div>
             </label>
