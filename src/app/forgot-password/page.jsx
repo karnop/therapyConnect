@@ -38,8 +38,8 @@ export default function ForgotPasswordPage() {
               Check your inbox
             </h2>
             <p className="text-gray-500 mb-8">
-              We've sent a password reset link to your email. Please click it to
-              create a new password.
+              We&apos;ve sent a password reset link to your email. Please click
+              it to create a new password.
             </p>
             <Link href="/login">
               <button className="w-full bg-secondary text-white font-bold py-3 rounded-xl hover:bg-[#5A7A66] transition-colors">
@@ -60,7 +60,7 @@ export default function ForgotPasswordPage() {
                 Forgot Password?
               </h1>
               <p className="text-gray-500 mt-1 text-sm">
-                Enter your email and we'll send you a recovery link.
+                Enter your email and we&apos;ll send you a recovery link.
               </p>
             </div>
 
