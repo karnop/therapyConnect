@@ -109,6 +109,7 @@ export async function login(formData) {
 
   redirect(redirectTo);
 }
+
 export async function logout() {
   const { account } = await createSessionClient();
   cookies().delete("appwrite-session");
@@ -118,4 +119,46 @@ export async function logout() {
     // Session might already be missing
   }
   redirect("/login");
+}
+
+export async function requestPasswordRecovery(formData) {
+  const email = formData.get("email");
+  const { account } = await createAdminClient();
+
+  // The URL the user will be redirected to after clicking the email link
+  // Appwrite appends ?userId=xyz&secret=abc to this URL automatically
+  const resetUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/reset-password`;
+
+  try {
+    await account.createRecovery(email, resetUrl);
+    return { success: true };
+  } catch (error) {
+    console.error("Recovery Error:", error);
+    // Security best practice: Don't reveal if email exists or not, just say success
+    // But for debugging MVP, returning error is fine.
+    return { error: "Failed to send recovery email. Please try again." };
+  }
+}
+
+export async function resetPassword(formData) {
+  const userId = formData.get("userId");
+  const secret = formData.get("secret");
+  const password = formData.get("password");
+  const confirmPassword = formData.get("confirmPassword");
+
+  if (password !== confirmPassword) {
+    return { error: "Passwords do not match." };
+  }
+
+  const { account } = await createAdminClient();
+
+  try {
+    await account.updateRecovery(userId, secret, password, password);
+    return { success: true };
+  } catch (error) {
+    console.error("Reset Error:", error);
+    return {
+      error: "Failed to reset password. The link may be invalid or expired.",
+    };
+  }
 }

@@ -109,8 +109,12 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-
-          <div className="mt-8 text-center">
+          <div className="mt-2 text-center ">
+            <p className="text-gray-500">
+              <Link href="/forgot-password">Forgot Password?</Link>
+            </p>
+          </div>
+          <div className="mt-2 text-center">
             <p className="text-gray-500">
               Don&apos;t have an account?{" "}
               {/* 3. Carry the redirect param to signup page if user switches */}
