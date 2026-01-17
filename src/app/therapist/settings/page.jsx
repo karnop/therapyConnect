@@ -8,15 +8,16 @@ import {
   Save,
   Loader2,
   User,
-  Building2,
   Camera,
   Link as LinkIcon,
   MapPin,
   DollarSign,
   Check,
-  ChevronDown,
   Wallet,
   FileBadge,
+  CheckCircle2,
+  Building2,
+  AlertCircle,
 } from "lucide-react";
 import Image from "next/image";
 import { SPECIALTIES_LIST, METRO_STATIONS } from "@/lib/constants";
@@ -27,98 +28,108 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("profile");
 
-  // Data State
-  const [data, setData] = useState({ profile: {}, rates: [], avatarUrl: null });
-  const [previewImage, setPreviewImage] = useState(null);
+  // Notification States
+  const [notification, setNotification] = useState({ type: null, message: "" });
 
-  // Invoice State (Controlled Inputs)
-  const [invoiceForm, setInvoiceForm] = useState({
+  // --- UNIFIED FORM STATE (Controlled) ---
+  const [formData, setFormData] = useState({
+    fullName: "",
+    bio: "",
+    specialties: [],
+    price60: "",
+    meetingLink: "",
+    clinicAddress: "",
+    metroStation: "",
+    paymentInstructions: "",
+    // Invoice Specific
     qualification: "",
-    rci_number: "",
-    business_address: "",
-    upi_id: "",
-    payment_instructions: "", // Shared between Practice & Invoice tab logic
+    rci: "",
+    address: "",
+    upi: "",
   });
 
-  // UI States
-  const [selectedSpecialties, setSelectedSpecialties] = useState([]);
+  const [previewImage, setPreviewImage] = useState(null);
+
+  // UI Helpers
   const [metroQuery, setMetroQuery] = useState("");
   const [filteredMetros, setFilteredMetros] = useState([]);
   const [showMetroDropdown, setShowMetroDropdown] = useState(false);
-
   const fileInputRef = useRef(null);
 
-  // --- 1. FETCH DATA ---
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [therapistRes, invoiceRes] = await Promise.all([
-          getTherapistData(),
-          getInvoiceSettings(),
-        ]);
+  // --- 1. FETCH & SYNC DATA ---
+  const fetchData = async () => {
+    try {
+      const [therapistRes, invoiceRes] = await Promise.all([
+        getTherapistData(),
+        getInvoiceSettings(),
+      ]);
 
-        // Hydrate Profile Data
-        if (therapistRes) {
-          setData(therapistRes);
-          setPreviewImage(therapistRes.avatarUrl);
-          if (therapistRes.profile.specialties) {
-            setSelectedSpecialties(therapistRes.profile.specialties);
-          }
-          if (therapistRes.profile.metro_station) {
-            setMetroQuery(therapistRes.profile.metro_station);
-          }
-          // Sync payment instructions from User Profile to Local State
-          setInvoiceForm((prev) => ({
-            ...prev,
-            payment_instructions:
-              therapistRes.profile.payment_instructions || "",
-          }));
-        }
+      if (therapistRes) {
+        const { profile, rates, avatarUrl } = therapistRes;
+        setPreviewImage(avatarUrl);
+        setMetroQuery(profile.metro_station || "");
 
-        // Hydrate Invoice Data
-        if (invoiceRes) {
-          setInvoiceForm((prev) => ({
-            ...prev,
-            qualification: invoiceRes.qualification || "",
-            rci_number: invoiceRes.rci_number || "",
-            business_address: invoiceRes.business_address || "",
-            upi_id: invoiceRes.upi_id || "",
-          }));
-        }
-      } catch (error) {
-        console.error("Error fetching settings:", error);
-      } finally {
-        setLoading(false);
+        setFormData((prev) => ({
+          ...prev,
+          fullName: profile.full_name || "",
+          bio: profile.bio || "",
+          specialties: profile.specialties || [],
+          price60: rates.find((r) => r.duration_mins === 60)?.price_inr || "",
+          meetingLink: profile.meeting_link || "",
+          clinicAddress: profile.clinic_address || "",
+          metroStation: profile.metro_station || "",
+          paymentInstructions: profile.payment_instructions || "",
+        }));
       }
-    };
+
+      if (invoiceRes) {
+        setFormData((prev) => ({
+          ...prev,
+          qualification: invoiceRes.qualification || "",
+          rci: invoiceRes.rci_number || "",
+          address: invoiceRes.business_address || "",
+          upi: invoiceRes.upi_id || "",
+        }));
+      }
+    } catch (error) {
+      console.error("Error fetching settings:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
   }, []);
 
   // --- 2. HANDLERS ---
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      setPreviewImage(URL.createObjectURL(file));
-    }
+    if (file) setPreviewImage(URL.createObjectURL(file));
   };
 
   const toggleSpecialty = (item) => {
-    if (selectedSpecialties.includes(item)) {
-      setSelectedSpecialties((prev) => prev.filter((i) => i !== item));
-    } else {
-      setSelectedSpecialties((prev) => [...prev, item]);
-    }
+    setFormData((prev) => {
+      const current = prev.specialties || [];
+      if (current.includes(item))
+        return { ...prev, specialties: current.filter((i) => i !== item) };
+      return { ...prev, specialties: [...current, item] };
+    });
   };
 
   const handleMetroChange = (e) => {
     const value = e.target.value;
     setMetroQuery(value);
+    setFormData((prev) => ({ ...prev, metroStation: value })); // Sync with form data
     setShowMetroDropdown(true);
-
     if (value.length > 0) {
       const filtered = METRO_STATIONS.filter((station) =>
-        station.toLowerCase().includes(value.toLowerCase())
+        station.toLowerCase().includes(value.toLowerCase()),
       );
       setFilteredMetros(filtered);
     } else {
@@ -128,34 +139,67 @@ export default function SettingsPage() {
 
   const selectMetro = (station) => {
     setMetroQuery(station);
+    setFormData((prev) => ({ ...prev, metroStation: station }));
     setShowMetroDropdown(false);
-  };
-
-  // Handle Controlled Inputs for Invoice/Payment
-  const handleInvoiceChange = (e) => {
-    const { name, value } = e.target;
-    setInvoiceForm((prev) => ({ ...prev, [name]: value }));
   };
 
   // --- 3. SUBMIT LOGIC ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
-    const formData = new FormData(e.currentTarget);
+    setNotification({ type: null, message: "" });
 
-    // Explicitly append controlled invoice data to formData if needed,
-    // or rely on the inputs having `name` attributes which FormData picks up automatically.
-    // Since the inputs are in the DOM (just hidden with CSS), FormData works for all tabs.
+    // Construct FormData manually from state to ensure everything is included
+    const submissionData = new FormData();
 
-    // Update Profile & Practice Info
-    await updateTherapistProfile(formData);
+    // Append all text fields
+    Object.keys(formData).forEach((key) => {
+      if (key === "specialties") {
+        submissionData.append(key, formData[key].join(","));
+      } else {
+        submissionData.append(key, formData[key]);
+      }
+    });
 
-    // Update Invoice Settings
-    await updateInvoiceSettings(formData);
+    // Append file if selected
+    if (fileInputRef.current?.files?.[0]) {
+      submissionData.append("avatar", fileInputRef.current.files[0]);
+    }
 
-    setSaving(false);
-    alert("Settings updated successfully!");
-    router.refresh();
+    try {
+      // Call Actions
+      const profileResult = await updateTherapistProfile(submissionData);
+
+      // We assume invoice settings are less critical or handle errors internally,
+      // but let's fire them sequentially
+      await updateInvoiceSettings(submissionData);
+
+      setSaving(false);
+
+      if (profileResult?.error) {
+        setNotification({
+          type: "error",
+          message: `Failed to update: ${profileResult.error}`,
+        });
+      } else {
+        await fetchData(); // Refresh state
+        setNotification({
+          type: "success",
+          message: "Settings saved successfully",
+        });
+        router.refresh();
+      }
+    } catch (err) {
+      setSaving(false);
+      setNotification({
+        type: "error",
+        message: "An unexpected error occurred.",
+      });
+      console.error(err);
+    }
+
+    // Auto hide notification after 4 seconds
+    setTimeout(() => setNotification({ type: null, message: "" }), 4000);
   };
 
   if (loading)
@@ -165,11 +209,8 @@ export default function SettingsPage() {
       </div>
     );
 
-  const rate60 =
-    data.rates.find((r) => r.duration_mins === 60)?.price_inr || "";
-
   return (
-    <div>
+    <div className="relative">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-primary">Settings</h1>
         <p className="text-gray-500 mt-1">
@@ -177,7 +218,7 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      {/* Tabs Navigation */}
+      {/* Tabs */}
       <div className="flex gap-6 border-b border-gray-200 mb-8 overflow-x-auto">
         {[
           { id: "profile", label: "Personal Profile" },
@@ -202,9 +243,8 @@ export default function SettingsPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="max-w-3xl pb-40 md:pb-24">
-        {/* --- TAB 1: PERSONAL PROFILE --- */}
+        {/* --- TAB 1: PROFILE --- */}
         <div className={activeTab === "profile" ? "block space-y-8" : "hidden"}>
-          {/* Avatar & Name */}
           <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-8 items-start">
             <div
               className="relative group cursor-pointer shrink-0"
@@ -229,42 +269,28 @@ export default function SettingsPage() {
               </div>
               <input
                 type="file"
-                name="avatar"
                 ref={fileInputRef}
                 onChange={handleImageChange}
                 className="hidden"
                 accept="image/*"
               />
             </div>
-
             <div className="flex-1 w-full space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Full Name
                 </label>
                 <input
-                  type="text"
                   name="fullName"
-                  defaultValue={data.profile.full_name}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all"
+                  value={formData.fullName}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary outline-none transition-all"
                   placeholder="Dr. John Doe"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Professional Title
-                </label>
-                <input
-                  type="text"
-                  disabled
-                  value="Licensed Therapist"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-100 bg-gray-50 text-gray-500 cursor-not-allowed"
                 />
               </div>
             </div>
           </div>
 
-          {/* Bio & Specialties */}
           <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -273,32 +299,27 @@ export default function SettingsPage() {
               <textarea
                 name="bio"
                 rows={6}
-                defaultValue={data.profile.bio}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all resize-none"
+                value={formData.bio}
+                onChange={handleChange}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary resize-none"
                 placeholder="Share your background..."
               />
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-3">
                 Specialties
               </label>
-              <input
-                type="hidden"
-                name="specialties"
-                value={selectedSpecialties.join(",")}
-              />
               <div className="flex flex-wrap gap-2">
                 {SPECIALTIES_LIST.map((item) => {
-                  const isSelected = selectedSpecialties.includes(item);
+                  const isSelected = formData.specialties.includes(item);
                   return (
                     <button
-                      key={item}
                       type="button"
+                      key={item}
                       onClick={() => toggleSpecialty(item)}
                       className={`px-4 py-2 rounded-full text-sm font-medium transition-all border ${
                         isSelected
-                          ? "bg-secondary text-white border-secondary shadow-md shadow-secondary/20"
+                          ? "bg-secondary text-white border-secondary shadow-md"
                           : "bg-white text-gray-600 border-gray-200 hover:border-secondary hover:text-secondary"
                       }`}
                     >
@@ -314,11 +335,10 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* --- TAB 2: PRACTICE & LOGISTICS --- */}
+        {/* --- TAB 2: PRACTICE --- */}
         <div
           className={activeTab === "practice" ? "block space-y-8" : "hidden"}
         >
-          {/* Pricing */}
           <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
               <div className="p-2 bg-green-50 text-green-600 rounded-lg">
@@ -330,24 +350,21 @@ export default function SettingsPage() {
             </div>
             <div className="max-w-xs">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                60 Minute Session
+                60 Min Rate
               </label>
               <div className="relative">
-                <span className="absolute left-4 top-3.5 text-gray-400 font-medium">
-                  ₹
-                </span>
+                <span className="absolute left-4 top-3.5 text-gray-400">₹</span>
                 <input
                   type="number"
                   name="price60"
-                  defaultValue={rate60}
-                  className="w-full pl-8 px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all font-medium"
-                  placeholder="2000"
+                  value={formData.price60}
+                  onChange={handleChange}
+                  className="w-full pl-8 px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary"
                 />
               </div>
             </div>
           </div>
 
-          {/* Payment Instructions (Shared State) */}
           <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
               <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
@@ -364,89 +381,63 @@ export default function SettingsPage() {
               <textarea
                 name="paymentInstructions"
                 rows={4}
-                value={invoiceForm.payment_instructions} // Controlled
-                onChange={handleInvoiceChange}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all resize-none"
-                placeholder="e.g. Please UPI to 9876543210@okicici..."
+                value={formData.paymentInstructions}
+                onChange={handleChange}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary resize-none"
+                placeholder="e.g. Please UPI to..."
               />
-              <p className="text-xs text-gray-400 mt-2">
-                SHOWN TO CLIENTS: Instructions on how to pay you after you
-                accept their request.
-              </p>
             </div>
           </div>
 
-          {/* Online Settings */}
           <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
               <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
                 <LinkIcon size={20} />
               </div>
-              <h2 className="text-lg font-bold text-primary">Online Therapy</h2>
+              <h2 className="text-lg font-bold text-primary">Online</h2>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Permanent Meeting Link
-              </label>
-              <input
-                type="url"
-                name="meetingLink"
-                defaultValue={data.profile.meeting_link || ""}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all"
-                placeholder="https://meet.google.com/..."
-              />
-            </div>
+            <input
+              type="url"
+              name="meetingLink"
+              value={formData.meetingLink}
+              onChange={handleChange}
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary"
+              placeholder="Meeting Link"
+            />
           </div>
 
-          {/* In-Person Settings */}
           <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
               <div className="p-2 bg-orange-50 text-orange-600 rounded-lg">
                 <Building2 size={20} />
               </div>
-              <h2 className="text-lg font-bold text-primary">
-                In-Person Clinic
-              </h2>
+              <h2 className="text-lg font-bold text-primary">Clinic</h2>
             </div>
             <div className="grid gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Clinic Address
-                </label>
+              <input
+                type="text"
+                name="clinicAddress"
+                value={formData.clinicAddress}
+                onChange={handleChange}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary"
+                placeholder="Address"
+              />
+              <div className="relative">
+                <MapPin
+                  className="absolute left-4 top-3.5 text-gray-400"
+                  size={18}
+                />
                 <input
                   type="text"
-                  name="clinicAddress"
-                  defaultValue={data.profile.clinic_address || ""}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all"
-                  placeholder="e.g. B-44, Defence Colony, New Delhi"
+                  name="metroStation"
+                  value={metroQuery}
+                  onChange={handleMetroChange}
+                  onFocus={() => setShowMetroDropdown(true)}
+                  onBlur={() =>
+                    setTimeout(() => setShowMetroDropdown(false), 200)
+                  }
+                  className="w-full pl-11 px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary"
                 />
-              </div>
-
-              <div className="relative">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nearest Metro Station
-                </label>
-                <div className="relative">
-                  <MapPin
-                    className="absolute left-4 top-3.5 text-gray-400"
-                    size={18}
-                  />
-                  <input
-                    type="text"
-                    name="metroStation"
-                    value={metroQuery}
-                    onChange={handleMetroChange}
-                    onFocus={() => setShowMetroDropdown(true)}
-                    onBlur={() =>
-                      setTimeout(() => setShowMetroDropdown(false), 200)
-                    }
-                    className="w-full pl-11 px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all"
-                    placeholder="Start typing station name..."
-                  />
-                  <div className="absolute right-4 top-3.5 pointer-events-none text-gray-400">
-                    <ChevronDown size={18} />
-                  </div>
-                </div>
                 {showMetroDropdown && filteredMetros.length > 0 && (
                   <div className="absolute z-10 w-full mt-2 bg-white border border-gray-100 rounded-xl shadow-xl max-h-60 overflow-y-auto">
                     {filteredMetros.map((station, idx) => (
@@ -457,7 +448,7 @@ export default function SettingsPage() {
                           e.preventDefault();
                           selectMetro(station);
                         }}
-                        className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-secondary hover:font-medium transition-colors border-b border-gray-50 last:border-0"
+                        className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
                       >
                         {station}
                       </button>
@@ -469,7 +460,7 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* --- TAB 3: BILLING & COMPLIANCE --- */}
+        {/* --- TAB 3: BILLING --- */}
         <div className={activeTab === "billing" ? "block space-y-8" : "hidden"}>
           <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
@@ -480,7 +471,6 @@ export default function SettingsPage() {
                 Invoice Compliance
               </h2>
             </div>
-
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -488,8 +478,8 @@ export default function SettingsPage() {
                 </label>
                 <input
                   name="qualification"
-                  value={invoiceForm.qualification}
-                  onChange={handleInvoiceChange}
+                  value={formData.qualification}
+                  onChange={handleChange}
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary outline-none text-sm"
                   placeholder="e.g. M.Phil Clinical Psychology"
                 />
@@ -500,31 +490,27 @@ export default function SettingsPage() {
                 </label>
                 <input
                   name="rci"
-                  value={invoiceForm.rci_number}
-                  onChange={handleInvoiceChange}
+                  value={formData.rci}
+                  onChange={handleChange}
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary outline-none text-sm"
                   placeholder="e.g. A78945"
                 />
-                <p className="text-xs text-gray-400 mt-1">
-                  Required for clients to claim insurance.
-                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Business Address (For Bill Header)
+                  Business Address
                 </label>
                 <textarea
                   name="address"
                   rows={2}
-                  value={invoiceForm.business_address}
-                  onChange={handleInvoiceChange}
+                  value={formData.address}
+                  onChange={handleChange}
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary outline-none text-sm resize-none"
                   placeholder="Clinic Address for the Bill"
                 />
               </div>
             </div>
           </div>
-
           <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
               <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
@@ -534,31 +520,26 @@ export default function SettingsPage() {
                 Collection Details
               </h2>
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 UPI ID (For QR Code)
               </label>
               <input
                 name="upi"
-                value={invoiceForm.upi_id}
-                onChange={handleInvoiceChange}
+                value={formData.upi}
+                onChange={handleChange}
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary outline-none text-sm"
                 placeholder="e.g. doctor@okicici"
               />
-              <p className="text-xs text-gray-400 mt-1">
-                This generates the scannable QR on the PDF.
-              </p>
             </div>
           </div>
         </div>
 
-        {/* Floating Save Bar */}
         <div className="fixed bottom-20 md:bottom-0 right-0 left-0 md:left-72 p-4 bg-white/80 backdrop-blur-md border-t border-gray-200 flex justify-end z-40 transition-all">
           <button
             type="submit"
             disabled={saving}
-            className="bg-secondary hover:bg-[#5A7A66] text-white font-semibold py-3 px-8 rounded-xl transition-all shadow-lg shadow-secondary/20 flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+            className="bg-secondary hover:bg-[#5A7A66] text-white font-semibold py-3 px-8 rounded-xl transition-all shadow-lg shadow-secondary/20 flex items-center gap-2 disabled:opacity-70"
           >
             {saving ? (
               <Loader2 size={18} className="animate-spin" />
@@ -569,6 +550,20 @@ export default function SettingsPage() {
           </button>
         </div>
       </form>
+
+      {/* TOAST NOTIFICATION */}
+      {notification.type && (
+        <div
+          className={`fixed bottom-24 md:bottom-8 right-8 z-50 px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-4 ${notification.type === "error" ? "bg-red-600 text-white" : "bg-[#2D2D2D] text-white"}`}
+        >
+          {notification.type === "error" ? (
+            <AlertCircle size={20} />
+          ) : (
+            <CheckCircle2 className="text-green-400" size={20} />
+          )}
+          <span className="font-bold text-sm">{notification.message}</span>
+        </div>
+      )}
     </div>
   );
 }
