@@ -4,16 +4,17 @@ export async function middleware(request) {
   const { pathname } = request.nextUrl;
   const sessionCookie = request.cookies.get("appwrite-session");
 
-  // 1. Define Protected Routes (Login required)
+  // 1. Define Protected Routes
+  // Added '/admin' to the list
   const protectedRoutes = [
     "/dashboard",
     "/therapist",
     "/book",
     "/profile/edit",
+    "/admin",
   ];
 
-  // 2. Define Auth Routes (Guest only)
-  // Added forgot-password and reset-password here so logged-in users are redirected to dashboard
+  // 2. Define Auth Routes
   const authRoutes = [
     "/login",
     "/signup",
@@ -21,13 +22,12 @@ export async function middleware(request) {
     "/reset-password",
   ];
 
-  // Check path matches
   const isProtectedRoute = protectedRoutes.some((route) =>
-    pathname.startsWith(route)
+    pathname.startsWith(route),
   );
   const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
 
-  // CASE A: Guest tries to access protected route
+  // CASE A: Guest tries to access protected route -> Login
   if (isProtectedRoute && !sessionCookie) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
@@ -35,8 +35,7 @@ export async function middleware(request) {
     return NextResponse.redirect(url);
   }
 
-  // CASE B: Logged-in User tries to access auth route (login/signup/reset)
-  // We redirect them to dashboard because they are already authenticated.
+  // CASE B: Logged-in User tries to access auth route -> Dashboard
   if (isAuthRoute && sessionCookie) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";

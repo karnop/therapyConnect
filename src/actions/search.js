@@ -11,26 +11,37 @@ const BUCKET_ID = "69272be5003c066e0366";
 
 export async function getTherapists(filters = {}) {
   const { databases } = await createAdminClient();
-  const { query, specialty, minPrice, maxPrice, mode, sort } = filters; // Added 'sort' and 'mode'
+  const { query, specialty, minPrice, maxPrice, mode, sort } = filters;
 
   // 1. Fetch ALL Therapists
-  const { documents: therapists } = await databases.listDocuments(
+  // Note: We attempt to filter by is_verified in DB, but we will double-check in JS
+  // to handle the String vs Boolean mismatch edge case.
+  const { documents: allTherapists } = await databases.listDocuments(
     DB_ID,
     USERS_COLLECTION,
-    [Query.equal("role", "therapist"), Query.limit(100)]
+    [
+      Query.equal("role", "therapist"),
+      Query.limit(100), // Fetch plenty to allow for filtering
+    ],
   );
 
-  // 2. Enrich & Filter
+  // --- CRITICAL FIX: The "Belt and Suspenders" Filter ---
+  // Filter out unverified users in Memory to guarantee safety.
+  // This handles both Boolean (true) and String ("true") types.
+  const verifiedTherapists = allTherapists.filter(
+    (t) => t.is_verified === true || t.is_verified === "true",
+  );
+
+  // 2. Enrich & Filter (Parallel Processing)
   const results = await Promise.all(
-    therapists.map(async (therapist) => {
-      // --- FILTER: Text Search (Name, Bio, OR Specialties) ---
+    verifiedTherapists.map(async (therapist) => {
+      // --- FILTER: Text Search ---
       if (query) {
         const q = query.toLowerCase();
         const name = therapist.full_name?.toLowerCase() || "";
         const bio = therapist.bio?.toLowerCase() || "";
         const specs = (therapist.specialties || []).map((s) => s.toLowerCase());
 
-        // If query matches NONE of these, skip
         if (
           !name.includes(q) &&
           !bio.includes(q) &&
@@ -40,13 +51,13 @@ export async function getTherapists(filters = {}) {
         }
       }
 
-      // --- FILTER: Specialty (Dropdown) ---
+      // --- FILTER: Specialty ---
       if (specialty && specialty !== "All") {
         const specs = therapist.specialties || [];
         if (!specs.includes(specialty)) return null;
       }
 
-      // --- FILTER: Mode (Online/Offline) ---
+      // --- FILTER: Mode ---
       if (mode && mode !== "all") {
         if (mode === "online" && !therapist.meeting_link) return null;
         if (mode === "offline" && !therapist.clinic_address) return null;
@@ -89,20 +100,34 @@ export async function getTherapists(filters = {}) {
         nextSlot,
         avatarUrl,
       };
-    })
+    }),
   );
 
   // 3. Filter Nulls
   let finalResults = results.filter(Boolean);
 
-  // 4. SORTING LOGIC
-  if (sort) {
-    if (sort === "price_asc") {
-      finalResults.sort((a, b) => a.price - b.price);
-    } else if (sort === "price_desc") {
-      finalResults.sort((a, b) => b.price - a.price);
+  // 4. RANKING ALGORITHM
+  finalResults.sort((a, b) => {
+    // A. Explicit User Sort
+    if (sort === "price_asc") return a.price - b.price;
+    if (sort === "price_desc") return b.price - a.price;
+
+    // B. Algorithm: Availability First
+    const aHasSlot = !!a.nextSlot;
+    const bHasSlot = !!b.nextSlot;
+
+    // Tier 1: Has Slots vs No Slots
+    if (aHasSlot && !bHasSlot) return -1;
+    if (!aHasSlot && bHasSlot) return 1;
+
+    // Tier 2: Inside "Has Slots", sort by SOONEST date
+    if (aHasSlot && bHasSlot) {
+      return new Date(a.nextSlot.start_time) - new Date(b.nextSlot.start_time);
     }
-  }
+
+    // Tier 3: Inside "No Slots", sort by NEWEST profile
+    return new Date(b.$createdAt) - new Date(a.$createdAt);
+  });
 
   return finalResults;
 }

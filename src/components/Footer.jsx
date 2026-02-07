@@ -20,7 +20,7 @@ export default function Footer() {
 
   return (
     <footer
-      className={`bg-gray-50 border-t border-gray-200 pt-16 pb-8 mt-20 transition-all duration-300 ${
+      className={` bg-gray-50 border-t border-gray-200 pt-16 pb-8 mt-20 transition-all duration-300 ${
         isTherapistRoute ? "md:ml-72" : ""
       }`}
     >

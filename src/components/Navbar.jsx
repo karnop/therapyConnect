@@ -23,11 +23,19 @@ const Navbar = ({ user }) => {
 
   // Where should the User Icon click go?
   const profileLink =
-    role === "therapist" ? "/therapist/dashboard" : "/dashboard";
+    role === "therapist"
+      ? "/therapist/dashboard"
+      : "admin"
+        ? "/admin/dashboard"
+        : "/dashboard";
 
   // Where should the "Dashboard" text button go?
   const dashboardLink =
-    role === "therapist" ? "/therapist/dashboard" : "/dashboard";
+    role === "therapist"
+      ? "/therapist/dashboard"
+      : "admin"
+        ? "/admin/dashboard"
+        : "/dashboard";
 
   return (
     <nav className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-gray-100 transition-all duration-300">
