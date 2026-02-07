@@ -3,6 +3,7 @@
 import { createSessionClient, createAdminClient } from "@/lib/appwrite";
 import { ID, Query } from "node-appwrite";
 import { revalidatePath } from "next/cache";
+import { encrypt, decrypt } from "@/lib/crypto";
 
 const DB_ID = "therapy_connect_db";
 const BOOKINGS_COLLECTION = "bookings";
@@ -27,7 +28,7 @@ export async function getMyClients() {
   const records = await databases.listDocuments(
     DB_ID,
     CLIENT_RECORDS_COLLECTION,
-    [Query.equal("therapist_id", user.$id), Query.limit(500)]
+    [Query.equal("therapist_id", user.$id), Query.limit(500)],
   );
 
   // 3. Merge Lists using a Map (Key = Client ID)
@@ -81,7 +82,7 @@ export async function getMyClients() {
         const profile = await databases.getDocument(
           DB_ID,
           USERS_COLLECTION,
-          c.id
+          c.id,
         );
         return {
           ...c,
@@ -92,7 +93,7 @@ export async function getMyClients() {
       } catch (e) {
         return null; // Handle deleted users
       }
-    })
+    }),
   );
 
   return enrichedClients.filter(Boolean);
@@ -135,7 +136,7 @@ export async function getMyTherapists() {
         const profile = await databases.getDocument(
           DB_ID,
           USERS_COLLECTION,
-          t.id
+          t.id,
         );
 
         let avatarUrl = null;
@@ -154,7 +155,7 @@ export async function getMyTherapists() {
       } catch (e) {
         return null;
       }
-    })
+    }),
   );
 
   return enrichedTherapists.filter(Boolean);
@@ -169,7 +170,7 @@ export async function getClientFullProfile(clientId) {
     const userProfile = await databases.getDocument(
       DB_ID,
       USERS_COLLECTION,
-      clientId
+      clientId,
     );
 
     const records = await databases.listDocuments(
@@ -179,7 +180,7 @@ export async function getClientFullProfile(clientId) {
         Query.equal("therapist_id", therapist.$id),
         Query.equal("client_id", clientId),
         Query.limit(1),
-      ]
+      ],
     );
 
     let clientRecord = records.documents[0];
@@ -194,8 +195,16 @@ export async function getClientFullProfile(clientId) {
           client_id: clientId,
           risk_status: "stable",
           source: "marketplace",
-        }
+        },
       );
+    } else {
+      // DECRYPT SENSITIVE FIELDS
+      clientRecord.presenting_problem = decrypt(
+        clientRecord.presenting_problem,
+      );
+      clientRecord.medications = decrypt(clientRecord.medications);
+      clientRecord.emergency_contact = decrypt(clientRecord.emergency_contact);
+      clientRecord.homework_list = decrypt(clientRecord.homework_list);
     }
 
     const now = new Date().toISOString();
@@ -206,6 +215,16 @@ export async function getClientFullProfile(clientId) {
       Query.orderAsc("start_time"),
       Query.limit(1),
     ]);
+
+    // Decrypt upcoming booking prep if exists
+    if (upcoming.documents[0]) {
+      upcoming.documents[0].client_intake = decrypt(
+        upcoming.documents[0].client_intake,
+      );
+      upcoming.documents[0].client_journal = decrypt(
+        upcoming.documents[0].client_journal,
+      );
+    }
 
     let avatarUrl = null;
     if (userProfile.avatar_id) {
@@ -243,10 +262,11 @@ export async function updateClinicalRecord(recordId, formData) {
 
   try {
     await databases.updateDocument(DB_ID, CLIENT_RECORDS_COLLECTION, recordId, {
-      presenting_problem: formData.get("presentingProblem"),
-      medications: formData.get("medications"),
-      emergency_contact: formData.get("emergencyContact"),
-      homework_list: formData.get("homeworkList"),
+      // ENCRYPT BEFORE SAVING
+      presenting_problem: encrypt(formData.get("presentingProblem")),
+      medications: encrypt(formData.get("medications")),
+      emergency_contact: encrypt(formData.get("emergencyContact")),
+      homework_list: encrypt(formData.get("homeworkList")),
     });
     revalidatePath("/therapist/client");
     return { success: true };
@@ -266,7 +286,16 @@ export async function getClientHistory(clientId) {
     Query.orderDesc("start_time"),
   ]);
 
-  return bookings.documents;
+  // Decrypt notes for every session
+  const decryptedHistory = bookings.documents.map((session) => ({
+    ...session,
+    private_note: decrypt(session.private_note),
+    shared_summary: decrypt(session.shared_summary),
+    client_intake: decrypt(session.client_intake),
+    client_journal: decrypt(session.client_journal),
+  }));
+
+  return decryptedHistory;
 }
 
 export async function updateSessionNote(bookingId, type, content) {
@@ -274,13 +303,14 @@ export async function updateSessionNote(bookingId, type, content) {
 
   try {
     const updateData = {};
-    updateData[type] = content;
+    // Encrypt content
+    updateData[type] = encrypt(content);
 
     await databases.updateDocument(
       DB_ID,
       BOOKINGS_COLLECTION,
       bookingId,
-      updateData
+      updateData,
     );
     revalidatePath("/therapist/client");
     return { success: true };
@@ -323,7 +353,7 @@ export async function createOfflineClient(formData) {
         client_id: ghostId,
         risk_status: "stable",
         source: "offline",
-      }
+      },
     );
 
     revalidatePath("/therapist/clients");
@@ -342,24 +372,25 @@ export async function createManualSession(formData) {
   const clientId = formData.get("clientId");
   const date = formData.get("date");
   const time = formData.get("time");
-  const mode = formData.get("mode"); // 'online' or 'offline'
-  const notes = formData.get("notes"); // Optional initial note
+  const mode = formData.get("mode");
+  const notes = formData.get("notes");
 
-  const startDateTime = new Date(`${date}T${time}`);
-  const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000); // Default 60 mins
+  const startDateTime = new Date(`${date}T${time}+05:30`);
+  const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000);
 
   try {
     await databases.createDocument(DB_ID, BOOKINGS_COLLECTION, ID.unique(), {
       client_id: clientId,
       therapist_id: therapist.$id,
-      service_rate_id: "manual-entry", // Placeholder for manual records
+      service_rate_id: "manual-entry",
       start_time: startDateTime.toISOString(),
       end_time: endDateTime.toISOString(),
-      status: "confirmed", // Auto-confirm manual entries
+      status: "confirmed",
       mode: mode,
       payment_id: "offline_log",
-      otp_code: "0000", // Not needed for historical data
-      private_note: notes || "", // Pre-fill note if provided
+      otp_code: "0000",
+      // ENCRYPT MANUAL NOTE
+      private_note: encrypt(notes || ""),
     });
 
     revalidatePath(`/therapist/client/${clientId}`);

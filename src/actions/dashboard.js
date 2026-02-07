@@ -5,6 +5,7 @@ import { Query } from "node-appwrite";
 import { revalidatePath } from "next/cache";
 import { sendEmail } from "@/lib/email";
 import { format, parseISO } from "date-fns";
+import { encrypt, decrypt } from "@/lib/crypto";
 
 const DB_ID = "therapy_connect_db";
 const BOOKINGS_COLLECTION = "bookings";
@@ -16,7 +17,6 @@ const BUCKET_ID = "69272be5003c066e0366";
 
 export async function updateBookingPrep(formData) {
   const { databases } = await createAdminClient();
-
   const bookingId = formData.get("bookingId");
   const moodRaw = formData.get("mood");
   const mood = moodRaw ? parseInt(moodRaw) : 5;
@@ -26,14 +26,14 @@ export async function updateBookingPrep(formData) {
   try {
     await databases.updateDocument(DB_ID, BOOKINGS_COLLECTION, bookingId, {
       client_mood: mood,
-      client_intake: formData.get("intake") || "",
-      client_journal: formData.get("journal") || "",
       is_shared: isShared,
+      // ENCRYPT
+      client_intake: encrypt(formData.get("intake") || ""),
+      client_journal: encrypt(formData.get("journal") || ""),
     });
     revalidatePath("/dashboard");
     return { success: true };
   } catch (error) {
-    console.error("Prep Update Error:", error);
     return { error: "Failed to save details." };
   }
 }
@@ -56,7 +56,7 @@ export async function getClientBookings() {
         const therapist = await databases.getDocument(
           DB_ID,
           USERS_COLLECTION,
-          booking.therapist_id
+          booking.therapist_id,
         );
 
         let avatarUrl = null;
@@ -80,7 +80,7 @@ export async function getClientBookings() {
       } catch (e) {
         return booking;
       }
-    })
+    }),
   );
 
   return enrichedBookings;
@@ -94,17 +94,17 @@ export async function handleBookingRequest(bookingId, action) {
     const booking = await databases.getDocument(
       DB_ID,
       BOOKINGS_COLLECTION,
-      bookingId
+      bookingId,
     );
     const client = await databases.getDocument(
       DB_ID,
       USERS_COLLECTION,
-      booking.client_id
+      booking.client_id,
     );
     const therapist = await databases.getDocument(
       DB_ID,
       USERS_COLLECTION,
-      booking.therapist_id
+      booking.therapist_id,
     );
 
     // Prepare Email Data with Fallbacks
@@ -143,7 +143,7 @@ export async function handleBookingRequest(bookingId, action) {
           slots.documents[0].$id,
           {
             is_booked: false,
-          }
+          },
         );
       }
 
@@ -167,17 +167,17 @@ export async function confirmBookingPayment(bookingId, isValid) {
     const booking = await databases.getDocument(
       DB_ID,
       BOOKINGS_COLLECTION,
-      bookingId
+      bookingId,
     );
     const client = await databases.getDocument(
       DB_ID,
       USERS_COLLECTION,
-      booking.client_id
+      booking.client_id,
     );
     const therapist = await databases.getDocument(
       DB_ID,
       USERS_COLLECTION,
-      booking.therapist_id
+      booking.therapist_id,
     );
 
     if (isValid) {
@@ -216,14 +216,13 @@ export async function getTherapistDashboardData() {
   const session = await createSessionClient();
   const user = await session.account.get();
   const { databases } = await createAdminClient();
-
   const now = new Date().toISOString();
 
   // 1. Fetch Therapist Profile (NEW: Needed for meeting link)
   const therapistProfile = await databases.getDocument(
     DB_ID,
     USERS_COLLECTION,
-    user.$id
+    user.$id,
   );
 
   // 2. Fetch Lists
@@ -240,7 +239,7 @@ export async function getTherapistDashboardData() {
       Query.equal("therapist_id", user.$id),
       Query.equal("status", "payment_verification"),
       Query.orderAsc("start_time"),
-    ]
+    ],
   );
 
   const upcoming = await databases.listDocuments(DB_ID, BOOKINGS_COLLECTION, [
@@ -251,11 +250,36 @@ export async function getTherapistDashboardData() {
     Query.limit(20),
   ]);
 
+  const enrichedUpcoming = await Promise.all(
+    upcoming.documents.map(async (booking) => {
+      // Decrypt text
+      const cleanBooking = {
+        ...booking,
+        client_intake: decrypt(booking.client_intake),
+        client_journal: decrypt(booking.client_journal),
+      };
+
+      try {
+        const client = await databases.getDocument(
+          DB_ID,
+          USERS_COLLECTION,
+          booking.client_id,
+        );
+        return {
+          ...cleanBooking,
+          client: { full_name: client.full_name, phone: client.phone_number },
+        };
+      } catch (e) {
+        return cleanBooking;
+      }
+    }),
+  );
+
   // Stats
   const startOfMonth = new Date(
     new Date().getFullYear(),
     new Date().getMonth(),
-    1
+    1,
   ).toISOString();
   const monthBookings = await databases.listDocuments(
     DB_ID,
@@ -264,7 +288,7 @@ export async function getTherapistDashboardData() {
       Query.equal("therapist_id", user.$id),
       Query.greaterThanEqual("start_time", startOfMonth),
       Query.equal("status", "confirmed"),
-    ]
+    ],
   );
 
   const rateDocs = await databases.listDocuments(DB_ID, RATES_COLLECTION, [
@@ -280,7 +304,7 @@ export async function getTherapistDashboardData() {
           const client = await databases.getDocument(
             DB_ID,
             USERS_COLLECTION,
-            booking.client_id
+            booking.client_id,
           );
           return {
             ...booking,
@@ -289,20 +313,44 @@ export async function getTherapistDashboardData() {
         } catch (e) {
           return booking;
         }
-      })
+      }),
+    );
+  };
+
+  const enrichSimple = async (list) => {
+    return await Promise.all(
+      list.map(async (booking) => {
+        try {
+          const client = await databases.getDocument(
+            DB_ID,
+            USERS_COLLECTION,
+            booking.client_id,
+          );
+          return {
+            ...booking,
+            client: { full_name: client.full_name, phone: client.phone_number },
+          };
+        } catch (e) {
+          return booking;
+        }
+      }),
     );
   };
 
   return {
-    therapistProfile, // NEW: Return profile with meeting_link
-    requests: await enrich(requests.documents),
-    verifications: await enrich(verifications.documents),
-    upcoming: await enrich(upcoming.documents),
+    requests: await enrichSimple(requests.documents),
+    verifications: await enrichSimple(verifications.documents),
+    upcoming: enrichedUpcoming, // Uses the decrypted map above
     stats: {
       earnings: monthBookings.total * price,
       sessions: monthBookings.total,
       price_per_session: price,
     },
+    therapistProfile: await databases.getDocument(
+      DB_ID,
+      USERS_COLLECTION,
+      user.$id,
+    ),
   };
 }
 
@@ -316,19 +364,23 @@ export async function getSessionDetails(bookingId) {
     const booking = await databases.getDocument(
       DB_ID,
       BOOKINGS_COLLECTION,
-      bookingId
+      bookingId,
     );
+
+    // DECRYPT Booking Data
+    booking.client_intake = decrypt(booking.client_intake);
+    booking.client_journal = decrypt(booking.client_journal);
+    booking.private_note = decrypt(booking.private_note);
+
     const client = await databases.getDocument(
       DB_ID,
       USERS_COLLECTION,
-      booking.client_id
+      booking.client_id,
     );
-
-    // NEW: Fetch Therapist details to get meeting link
     const therapist = await databases.getDocument(
       DB_ID,
       USERS_COLLECTION,
-      booking.therapist_id
+      booking.therapist_id,
     );
 
     const history = await databases.listDocuments(DB_ID, BOOKINGS_COLLECTION, [
@@ -338,12 +390,16 @@ export async function getSessionDetails(bookingId) {
       Query.limit(20),
     ]);
 
-    return {
-      booking,
-      client,
-      therapist, // NEW: Include therapist profile
-      history: history.documents,
-    };
+    // DECRYPT History
+    const decryptedHistory = history.documents.map((b) => ({
+      ...b,
+      private_note: decrypt(b.private_note),
+      shared_summary: decrypt(b.shared_summary),
+      client_journal: decrypt(b.client_journal),
+      client_intake: decrypt(b.client_intake),
+    }));
+
+    return { booking, client, therapist, history: decryptedHistory };
   } catch (error) {
     return null;
   }
@@ -372,38 +428,37 @@ export async function getClientHomework() {
   const { databases } = await createAdminClient();
 
   try {
-    // Fetch all clinical records linked to this client
     const records = await databases.listDocuments(
       DB_ID,
       CLIENT_RECORDS_COLLECTION,
-      [Query.equal("client_id", user.$id)]
+      [Query.equal("client_id", user.$id)],
     );
 
-    // Filter for those with homework and get therapist names
     const homeworkList = await Promise.all(
       records.documents.map(async (record) => {
-        if (!record.homework_list) return null;
+        // Decrypt Homework
+        const tasks = decrypt(record.homework_list);
+        if (!tasks) return null;
 
         try {
           const therapist = await databases.getDocument(
             DB_ID,
             USERS_COLLECTION,
-            record.therapist_id
+            record.therapist_id,
           );
           return {
             id: record.$id,
             therapistName: therapist.full_name,
-            tasks: record.homework_list,
+            tasks: tasks,
           };
         } catch (e) {
           return null;
         }
-      })
+      }),
     );
 
     return homeworkList.filter(Boolean);
   } catch (error) {
-    console.error("Homework Fetch Error:", error);
     return [];
   }
 }
