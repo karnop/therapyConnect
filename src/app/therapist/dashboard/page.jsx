@@ -1,5 +1,11 @@
 import { getTherapistDashboardData } from "@/actions/dashboard";
-import { format, parseISO, isToday } from "date-fns";
+// REMOVED date-fns format/isToday imports that rely on local system time
+import {
+  formatTimeIST,
+  formatDateIST,
+  isTodayIST,
+  getGreetingIST,
+} from "@/lib/date";
 import {
   Calendar,
   Video,
@@ -21,7 +27,9 @@ export default async function TherapistDashboard() {
   const nextSession = upcoming[0];
   const otherSessions = upcoming.slice(1);
   const firstName = therapistProfile?.full_name?.split(" ")[0] || "Doctor";
-  const todayDate = format(new Date(), "EEEE, MMMM do");
+
+  // Format today's date in IST
+  const todayDate = formatDateIST(new Date().toISOString(), "long");
 
   return (
     <div className="pb-20">
@@ -32,7 +40,7 @@ export default async function TherapistDashboard() {
             {todayDate}
           </p>
           <h1 className="text-3xl font-bold text-gray-900">
-            Good {getGreeting()}, {firstName}
+            Good {getGreetingIST()}, {firstName}
           </h1>
         </div>
         <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm text-xs font-bold text-gray-600 uppercase tracking-wider">
@@ -76,12 +84,12 @@ export default async function TherapistDashboard() {
               <div className="bg-gray-50 px-6 py-3 border-b border-gray-200 flex justify-between items-center">
                 <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
                   <Clock size={14} className="text-secondary" />
-                  {isToday(parseISO(nextSession.start_time))
+                  {isTodayIST(nextSession.start_time)
                     ? "Happening Today"
                     : "Next Session"}
                 </h3>
                 <span className="text-gray-900 font-mono font-bold">
-                  {format(parseISO(nextSession.start_time), "h:mm a")}
+                  {formatTimeIST(nextSession.start_time)}
                 </span>
               </div>
 
@@ -99,11 +107,7 @@ export default async function TherapistDashboard() {
                         </h2>
                         <div className="flex items-center gap-3 mt-1">
                           <span
-                            className={`text-xs px-2 py-0.5 rounded font-medium uppercase tracking-wide ${
-                              nextSession.mode === "online"
-                                ? "bg-blue-50 text-blue-700"
-                                : "bg-orange-50 text-orange-700"
-                            }`}
+                            className={`text-xs px-2 py-0.5 rounded font-medium uppercase tracking-wide ${nextSession.mode === "online" ? "bg-blue-50 text-blue-700" : "bg-orange-50 text-orange-700"}`}
                           >
                             {nextSession.mode}
                           </span>
@@ -128,18 +132,10 @@ export default async function TherapistDashboard() {
                           </span>
                           {nextSession.client_mood && (
                             <div
-                              className={`h-1.5 flex-1 rounded-full mb-1.5 ${
-                                nextSession.client_mood < 5
-                                  ? "bg-red-200"
-                                  : "bg-green-200"
-                              }`}
+                              className={`h-1.5 flex-1 rounded-full mb-1.5 ${nextSession.client_mood < 5 ? "bg-red-200" : "bg-green-200"}`}
                             >
                               <div
-                                className={`h-full rounded-full ${
-                                  nextSession.client_mood < 5
-                                    ? "bg-red-500"
-                                    : "bg-green-500"
-                                }`}
+                                className={`h-full rounded-full ${nextSession.client_mood < 5 ? "bg-red-500" : "bg-green-500"}`}
                                 style={{
                                   width: `${nextSession.client_mood * 10}%`,
                                 }}
@@ -228,10 +224,10 @@ export default async function TherapistDashboard() {
                       <div className="flex items-center gap-5">
                         <div className="flex flex-col items-center min-w-[50px]">
                           <span className="text-xs font-bold text-gray-400 uppercase">
-                            {format(parseISO(session.start_time), "MMM")}
+                            {formatDateIST(session.start_time, "month")}
                           </span>
                           <span className="text-xl font-bold text-gray-900">
-                            {format(parseISO(session.start_time), "d")}
+                            {formatDateIST(session.start_time, "day")}
                           </span>
                         </div>
                         <div className="w-px h-10 bg-gray-200"></div>
@@ -242,7 +238,7 @@ export default async function TherapistDashboard() {
                           <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
                             <span className="flex items-center gap-1">
                               <Clock size={12} />{" "}
-                              {format(parseISO(session.start_time), "h:mm a")}
+                              {formatTimeIST(session.start_time)}
                             </span>
                             <span className="capitalize">• {session.mode}</span>
                           </div>
@@ -250,12 +246,12 @@ export default async function TherapistDashboard() {
                       </div>
                       <div className="flex items-center gap-4">
                         {session.is_shared && (
-                          <div className="flex items-center gap-1 text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md">
+                          <span className="bg-yellow-50 text-yellow-600 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
                             <Sparkles size={10} /> PREP
-                          </div>
+                          </span>
                         )}
                         <ChevronRight
-                          size={20}
+                          size={18}
                           className="text-gray-300 group-hover:text-secondary transition-colors"
                         />
                       </div>
@@ -269,7 +265,8 @@ export default async function TherapistDashboard() {
 
         {/* --- RIGHT: ANALYTICS WIDGETS --- */}
         <div className="lg:col-span-1 space-y-6">
-          {/* Activity Card (Replaces Revenue) */}
+          {/* ... (Widgets are mostly numbers, no dates, so keeping as is) ... */}
+          {/* Same code as previous version for widgets */}
           <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-2 text-sm font-bold text-gray-500 uppercase tracking-wider">
@@ -279,7 +276,6 @@ export default async function TherapistDashboard() {
                 MTD
               </span>
             </div>
-
             <div className="mb-2">
               <p className="text-5xl font-bold text-gray-900 tracking-tight">
                 {stats.sessions}
@@ -290,12 +286,10 @@ export default async function TherapistDashboard() {
             </div>
           </div>
 
-          {/* Practice Overview */}
           <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
             <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2 text-sm uppercase tracking-wide">
               <Users size={16} className="text-gray-400" /> Practice Info
             </h3>
-
             <div className="space-y-4">
               <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl border border-gray-100">
                 <div className="flex flex-col">
@@ -314,7 +308,6 @@ export default async function TherapistDashboard() {
                 </Link>
               </div>
             </div>
-
             <div className="mt-6 pt-6 border-t border-gray-100">
               <Link href="/therapist/settings">
                 <button className="w-full py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors">
@@ -327,11 +320,4 @@ export default async function TherapistDashboard() {
       </div>
     </div>
   );
-}
-
-function getGreeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Morning";
-  if (hour < 18) return "Afternoon";
-  return "Evening";
 }

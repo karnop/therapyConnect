@@ -1,20 +1,19 @@
 import Link from "next/link";
 import Image from "next/image";
 import { MapPin, Video, Calendar, ArrowRight, User } from "lucide-react";
-import { format } from "date-fns";
+import { formatTimeIST, formatDateIST } from "@/lib/date"; // NEW IMPORT
 
 export default function TherapistCard({ data }) {
-  // Determine display location
   const isOnline = !!data.meeting_link;
   const locationText = data.metro_station
     ? `${data.metro_station}, Delhi`
     : isOnline
-    ? "Online Only"
-    : "Location hidden";
+      ? "Online Only"
+      : "Location hidden";
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all group flex flex-col h-full overflow-hidden">
-      {/* Header / Avatar */}
+      {/* ... (Header & Bio & Specialties Code Remains Same) ... */}
       <div className="p-6 flex items-start gap-4">
         <div className="relative w-16 h-16 shrink-0">
           {data.avatarUrl ? (
@@ -29,10 +28,8 @@ export default function TherapistCard({ data }) {
               <User size={24} />
             </div>
           )}
-          {/* Online Indicator */}
           <span className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></span>
         </div>
-
         <div>
           <h3 className="font-bold text-lg text-primary group-hover:text-secondary transition-colors">
             {data.full_name}
@@ -50,8 +47,6 @@ export default function TherapistCard({ data }) {
           </div>
         </div>
       </div>
-
-      {/* Bio Snippet (New Addition) */}
       {data.bio && (
         <div className="px-6 pb-3">
           <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">
@@ -59,8 +54,6 @@ export default function TherapistCard({ data }) {
           </p>
         </div>
       )}
-
-      {/* Specialties Tags */}
       <div className="px-6 pb-4">
         <div className="flex flex-wrap gap-2">
           {data.specialties?.slice(0, 3).map((tag, i) => (
@@ -80,16 +73,13 @@ export default function TherapistCard({ data }) {
       </div>
 
       <div className="mt-auto border-t border-gray-100 p-4 bg-gray-50/50">
-        {/* Availability Info */}
+        {/* Availability Info using IST Helpers */}
         <div className="mb-4">
           {data.nextSlot ? (
             <div className="flex items-center gap-2 text-xs font-medium text-green-700 bg-green-50 px-3 py-2 rounded-lg w-fit">
               <Calendar size={14} />
-              Next:{" "}
-              {format(
-                new Date(data.nextSlot.start_time),
-                "EEE, MMM d • h:mm a"
-              )}
+              Next: {formatDateIST(data.nextSlot.start_time)} •{" "}
+              {formatTimeIST(data.nextSlot.start_time)}
             </div>
           ) : (
             <div className="flex items-center gap-2 text-xs font-medium text-gray-500 bg-gray-100 px-3 py-2 rounded-lg w-fit">
