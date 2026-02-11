@@ -154,7 +154,7 @@ export default function LandingPage() {
               <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
             </span>
             <span className="text-xs font-bold text-gray-600 tracking-wide uppercase">
-              Live in Delhi NCR
+              Live in India
             </span>
           </motion.div>
 

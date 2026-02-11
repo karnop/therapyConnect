@@ -12,7 +12,7 @@ const manrope = Manrope({
 
 export const metadata = {
   title: "TherapyConnect",
-  description: "Find your peace. Connect with top therapists in Delhi NCR.",
+  description: "Find your peace. Connect with top therapists in India.",
 };
 
 export default async function RootLayout({ children }) {
@@ -29,7 +29,7 @@ export default async function RootLayout({ children }) {
       const profile = await databases.getDocument(
         "therapy_connect_db",
         "users",
-        sessionUser.$id
+        sessionUser.$id,
       );
       // Merge auth data with profile data
       user = {
