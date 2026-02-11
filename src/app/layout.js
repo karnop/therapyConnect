@@ -3,6 +3,7 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { createSessionClient } from "@/lib/appwrite";
+import { Analytics } from "@vercel/analytics/next";
 
 const manrope = Manrope({
   subsets: ["latin"],
@@ -53,6 +54,7 @@ export default async function RootLayout({ children }) {
       >
         <Navbar user={user} />
         <main className="min-h-screen md:pt-20">{children}</main>
+        <Analytics />
         <Footer />
       </body>
     </html>
