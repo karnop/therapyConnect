@@ -14,25 +14,26 @@ export async function getTherapists(filters = {}) {
   const { query, specialty, minPrice, maxPrice, mode, sort } = filters;
 
   // 1. Fetch ALL Therapists
-  // Note: We attempt to filter by is_verified in DB, but we will double-check in JS
-  // to handle the String vs Boolean mismatch edge case.
+  // Added sort by creation to ensure consistent list order
   const { documents: allTherapists } = await databases.listDocuments(
     DB_ID,
     USERS_COLLECTION,
     [
       Query.equal("role", "therapist"),
-      Query.limit(100), // Fetch plenty to allow for filtering
+      Query.limit(100),
+      Query.orderDesc("$createdAt"),
     ],
   );
 
-  // --- CRITICAL FIX: The "Belt and Suspenders" Filter ---
-  // Filter out unverified users in Memory to guarantee safety.
-  // This handles both Boolean (true) and String ("true") types.
+  // 2. Verified Filter (Loose check)
+  // Checks for boolean true, string "true", or existing verified field
   const verifiedTherapists = allTherapists.filter(
     (t) => t.is_verified === true || t.is_verified === "true",
   );
 
-  // 2. Enrich & Filter (Parallel Processing)
+  if (verifiedTherapists.length === 0) return [];
+
+  // 3. Enrich & Filter
   const results = await Promise.all(
     verifiedTherapists.map(async (therapist) => {
       // --- FILTER: Text Search ---
@@ -52,7 +53,7 @@ export async function getTherapists(filters = {}) {
       }
 
       // --- FILTER: Specialty ---
-      if (specialty && specialty !== "All") {
+      if (specialty && specialty !== "All" && specialty !== "") {
         const specs = therapist.specialties || [];
         if (!specs.includes(specialty)) return null;
       }
@@ -64,29 +65,49 @@ export async function getTherapists(filters = {}) {
       }
 
       // --- FETCH: Price ---
-      const rateDocs = await databases.listDocuments(DB_ID, RATES_COLLECTION, [
-        Query.equal("therapist_id", therapist.$id),
-        Query.equal("duration_mins", 60),
-        Query.limit(1),
-      ]);
-      const price = rateDocs.documents[0]?.price_inr || 0;
+      let price = 2000;
+      try {
+        const rateDocs = await databases.listDocuments(
+          DB_ID,
+          RATES_COLLECTION,
+          [
+            Query.equal("therapist_id", therapist.$id),
+            Query.equal("duration_mins", 60),
+            Query.limit(1),
+          ],
+        );
+        if (rateDocs.documents.length > 0) {
+          price = rateDocs.documents[0].price_inr;
+        }
+      } catch (e) {
+        // Ignore rate fetch error
+      }
 
       // --- FILTER: Price Range ---
       if (minPrice && price < parseInt(minPrice)) return null;
       if (maxPrice && price > parseInt(maxPrice)) return null;
 
-      // --- FETCH: Next Available Slot ---
-      const now = new Date().toISOString();
-      const slotDocs = await databases.listDocuments(DB_ID, SLOTS_COLLECTION, [
-        Query.equal("therapist_id", therapist.$id),
-        Query.equal("is_booked", false),
-        Query.greaterThan("start_time", now),
-        Query.orderAsc("start_time"),
-        Query.limit(1),
-      ]);
-      const nextSlot = slotDocs.documents[0] || null;
+      // --- FETCH: Next Slot ---
+      let nextSlot = null;
+      try {
+        const now = new Date().toISOString();
+        const slotDocs = await databases.listDocuments(
+          DB_ID,
+          SLOTS_COLLECTION,
+          [
+            Query.equal("therapist_id", therapist.$id),
+            Query.equal("is_booked", false),
+            Query.greaterThan("start_time", now),
+            Query.orderAsc("start_time"),
+            Query.limit(1),
+          ],
+        );
+        nextSlot = slotDocs.documents[0] || null;
+      } catch (e) {
+        // Ignore slot error
+      }
 
-      // --- FETCH: Avatar URL ---
+      // --- FETCH: Avatar ---
       let avatarUrl = null;
       if (therapist.avatar_id) {
         const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
@@ -103,29 +124,22 @@ export async function getTherapists(filters = {}) {
     }),
   );
 
-  // 3. Filter Nulls
   let finalResults = results.filter(Boolean);
 
-  // 4. RANKING ALGORITHM
+  // 4. Sort
   finalResults.sort((a, b) => {
-    // A. Explicit User Sort
     if (sort === "price_asc") return a.price - b.price;
     if (sort === "price_desc") return b.price - a.price;
 
-    // B. Algorithm: Availability First
     const aHasSlot = !!a.nextSlot;
     const bHasSlot = !!b.nextSlot;
 
-    // Tier 1: Has Slots vs No Slots
     if (aHasSlot && !bHasSlot) return -1;
     if (!aHasSlot && bHasSlot) return 1;
 
-    // Tier 2: Inside "Has Slots", sort by SOONEST date
     if (aHasSlot && bHasSlot) {
       return new Date(a.nextSlot.start_time) - new Date(b.nextSlot.start_time);
     }
-
-    // Tier 3: Inside "No Slots", sort by NEWEST profile
     return new Date(b.$createdAt) - new Date(a.$createdAt);
   });
 

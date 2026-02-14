@@ -1,11 +1,5 @@
 import { getTherapistDashboardData } from "@/actions/dashboard";
-// REMOVED date-fns format/isToday imports that rely on local system time
-import {
-  formatTimeIST,
-  formatDateIST,
-  isTodayIST,
-  getGreetingIST,
-} from "@/lib/date";
+import { format, parseISO, isToday } from "date-fns";
 import {
   Calendar,
   Video,
@@ -19,17 +13,36 @@ import {
   Activity,
 } from "lucide-react";
 import Link from "next/link";
+import {
+  formatTimeIST,
+  formatDateIST,
+  isTodayIST,
+  getGreetingIST,
+} from "@/lib/date";
 
 export default async function TherapistDashboard() {
-  const { requests, upcoming, stats, therapistProfile } =
-    await getTherapistDashboardData();
+  const data = await getTherapistDashboardData();
+
+  // Guard against null data if fetch fails completely
+  if (!data)
+    return <div className="p-10 text-center">Loading Dashboard...</div>;
+
+  const {
+    requests = [],
+    upcoming = [],
+    stats = {},
+    therapistProfile = {},
+  } = data;
 
   const nextSession = upcoming[0];
   const otherSessions = upcoming.slice(1);
   const firstName = therapistProfile?.full_name?.split(" ")[0] || "Doctor";
-
-  // Format today's date in IST
-  const todayDate = formatDateIST(new Date().toISOString(), "long");
+  // Safe date formatting
+  const todayDate = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
 
   return (
     <div className="pb-20">
@@ -99,11 +112,12 @@ export default async function TherapistDashboard() {
                   <div className="flex-1">
                     <div className="flex items-start gap-5 mb-6">
                       <div className="w-16 h-16 bg-[#2D2D2D] rounded-2xl flex items-center justify-center text-2xl font-bold text-white shadow-lg">
-                        {nextSession.client?.full_name?.[0] || "C"}
+                        {/* SAFE CHECK: client might be null if user deleted */}
+                        {nextSession.client?.full_name?.[0] || "?"}
                       </div>
                       <div>
                         <h2 className="text-2xl font-bold text-gray-900">
-                          {nextSession.client?.full_name}
+                          {nextSession.client?.full_name || "Unknown Client"}
                         </h2>
                         <div className="flex items-center gap-3 mt-1">
                           <span
@@ -163,7 +177,7 @@ export default async function TherapistDashboard() {
                       </p>
                       {nextSession.mode === "online" ? (
                         <a
-                          href={therapistProfile.meeting_link}
+                          href={therapistProfile.meeting_link || "#"}
                           target="_blank"
                           className="w-full bg-[#2D2D2D] text-white px-4 py-3 rounded-xl font-bold text-sm hover:bg-black transition-all shadow-md flex items-center justify-center gap-2"
                         >
@@ -233,7 +247,7 @@ export default async function TherapistDashboard() {
                         <div className="w-px h-10 bg-gray-200"></div>
                         <div>
                           <p className="font-bold text-gray-900 text-sm group-hover:text-secondary transition-colors">
-                            {session.client?.full_name}
+                            {session.client?.full_name || "Unknown Client"}
                           </p>
                           <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
                             <span className="flex items-center gap-1">
@@ -265,8 +279,7 @@ export default async function TherapistDashboard() {
 
         {/* --- RIGHT: ANALYTICS WIDGETS --- */}
         <div className="lg:col-span-1 space-y-6">
-          {/* ... (Widgets are mostly numbers, no dates, so keeping as is) ... */}
-          {/* Same code as previous version for widgets */}
+          {/* Activity Card */}
           <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-2 text-sm font-bold text-gray-500 uppercase tracking-wider">
@@ -276,9 +289,10 @@ export default async function TherapistDashboard() {
                 MTD
               </span>
             </div>
+
             <div className="mb-2">
               <p className="text-5xl font-bold text-gray-900 tracking-tight">
-                {stats.sessions}
+                {stats?.sessions || 0}
               </p>
               <p className="text-sm font-medium text-gray-400 mt-2">
                 Total sessions this month
@@ -286,10 +300,12 @@ export default async function TherapistDashboard() {
             </div>
           </div>
 
+          {/* Practice Overview */}
           <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
             <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2 text-sm uppercase tracking-wide">
               <Users size={16} className="text-gray-400" /> Practice Info
             </h3>
+
             <div className="space-y-4">
               <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl border border-gray-100">
                 <div className="flex flex-col">
@@ -297,7 +313,7 @@ export default async function TherapistDashboard() {
                     Current Rate
                   </span>
                   <span className="text-lg font-bold text-gray-900">
-                    ₹{stats.price_per_session}
+                    ₹{stats?.price_per_session || 0}
                   </span>
                 </div>
                 <Link
@@ -308,6 +324,7 @@ export default async function TherapistDashboard() {
                 </Link>
               </div>
             </div>
+
             <div className="mt-6 pt-6 border-t border-gray-100">
               <Link href="/therapist/settings">
                 <button className="w-full py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors">

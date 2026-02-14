@@ -9,6 +9,10 @@ import {
 } from "lucide-react";
 import { SPECIALTIES_LIST } from "@/lib/constants";
 
+// CRITICAL FIX: Force dynamic rendering to prevent stale cache
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function SearchPage({ searchParams }) {
   const therapists = await getTherapists(searchParams);
 

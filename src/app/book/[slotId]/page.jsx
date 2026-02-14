@@ -1,28 +1,47 @@
 import { getSlotDetails } from "@/actions/booking";
 import BookingForm from "@/components/BookingForm";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, addMinutes } from "date-fns";
 import { Clock, Calendar, Shield, AlertTriangle } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import { createSessionClient } from "@/lib/appwrite";
 
-export default async function CheckoutPage({ params }) {
+export default async function CheckoutPage({ params, searchParams }) {
   const { slotId } = params;
+  // Get duration from URL (default to 60 if missing)
+  const duration = parseInt(searchParams.duration) || 60;
 
-  // 1. Verify User is Logged In (Redirect if not)
+  // 1. Verify User
   try {
     const { account } = await createSessionClient();
     await account.get();
   } catch (error) {
-    redirect(`/login?redirect=/book/${slotId}`);
+    redirect(`/login?redirect=/book/${slotId}?duration=${duration}`);
   }
 
   // 2. Fetch Data
   const data = await getSlotDetails(slotId);
   if (!data || !data.slot) return notFound();
 
-  const { slot, therapist, price } = data;
+  const { slot, therapist, rates } = data;
 
-  // 3. Double Booking Guard (View Layer)
+  // 3. Calculate Dynamic Details
+  const startTime = parseISO(slot.start_time);
+  const endTime = addMinutes(startTime, duration);
+
+  // Find price for this duration
+  const rateDoc = rates.find((r) => r.duration_mins === duration);
+  // Fallback price logic if specific rate not found (e.g. 1.5x for 90mins)
+  let price = 2000;
+  if (rateDoc) {
+    price = rateDoc.price_inr;
+  } else {
+    // Intelligent fallback based on 60min rate
+    const baseRate =
+      rates.find((r) => r.duration_mins === 60)?.price_inr || 2000;
+    price = Math.round(baseRate * (duration / 60));
+  }
+
+  // 4. Double Booking Guard
   if (slot.is_booked) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
@@ -62,7 +81,6 @@ export default async function CheckoutPage({ params }) {
           <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
             <div className="flex items-center gap-4 mb-8 pb-8 border-b border-gray-100">
               <div className="relative w-16 h-16 shrink-0 bg-gray-100 rounded-2xl flex items-center justify-center text-2xl text-gray-400 font-bold overflow-hidden">
-                {/* Show initals if no image */}
                 {therapist.full_name ? therapist.full_name[0] : "T"}
               </div>
               <div>
@@ -83,7 +101,7 @@ export default async function CheckoutPage({ params }) {
                     Date
                   </p>
                   <p className="text-gray-900 font-medium">
-                    {format(parseISO(slot.start_time), "EEEE, MMMM do, yyyy")}
+                    {format(startTime, "EEEE, MMMM do, yyyy")}
                   </p>
                 </div>
               </div>
@@ -94,11 +112,10 @@ export default async function CheckoutPage({ params }) {
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">
-                    Time
+                    Time ({duration} Mins)
                   </p>
                   <p className="text-gray-900 font-medium">
-                    {format(parseISO(slot.start_time), "h:mm a")} -{" "}
-                    {format(parseISO(slot.end_time), "h:mm a")}
+                    {format(startTime, "h:mm a")} - {format(endTime, "h:mm a")}
                   </p>
                 </div>
               </div>
@@ -116,7 +133,13 @@ export default async function CheckoutPage({ params }) {
         </div>
 
         {/* Right: Booking Form (Client Component) */}
-        <BookingForm slotId={slotId} price={price} therapist={therapist} />
+        {/* Pass duration to form so it sends to backend */}
+        <BookingForm
+          slotId={slotId}
+          price={price}
+          therapist={therapist}
+          duration={duration}
+        />
       </div>
     </div>
   );
