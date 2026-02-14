@@ -9,51 +9,44 @@ import {
   ArrowRight,
   Loader2,
   CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
-import { useFormStatus } from "react-dom";
-
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="w-full bg-secondary hover:bg-[#5A7A66] text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-secondary/20 flex items-center justify-center gap-2 group disabled:opacity-70 disabled:cursor-not-allowed mt-6"
-    >
-      {pending ? (
-        <>
-          <Loader2 size={20} className="animate-spin" />
-          Sending Request...
-        </>
-      ) : (
-        <>
-          <Send size={20} />
-          Send Booking Request
-          <ArrowRight
-            size={18}
-            className="group-hover:translate-x-1 transition-transform"
-          />
-        </>
-      )}
-    </button>
-  );
-}
 
 export default function BookingForm({ slotId, price, therapist, duration }) {
   const hasOnline = !!therapist.meeting_link;
   const hasOffline = !!therapist.clinic_address;
+
+  // Default to first available option
   const [selectedMode, setSelectedMode] = useState(
     hasOnline ? "online" : "offline",
   );
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setError(null);
+
+    const formData = new FormData(e.currentTarget);
+
+    // Call Server Action
+    const result = await createBooking(formData);
+
+    // If we get here, it means there was an error (success redirects automatically)
+    if (result?.error) {
+      setError(result.error);
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <form
-      action={createBooking}
+      onSubmit={handleSubmit}
       className="bg-white p-8 rounded-3xl border border-gray-100 shadow-lg h-fit sticky top-24"
     >
       <input type="hidden" name="slotId" value={slotId} />
       <input type="hidden" name="mode" value={selectedMode} />
-      {/* NEW: Pass duration to server action */}
       <input type="hidden" name="duration" value={duration} />
 
       <h2 className="text-xl font-bold text-primary mb-6">
@@ -117,6 +110,7 @@ export default function BookingForm({ slotId, price, therapist, duration }) {
             )}
           </div>
         )}
+
         {!hasOnline && !hasOffline && (
           <div className="p-4 bg-red-50 text-red-500 text-sm rounded-xl border border-red-100">
             Error: This therapist has not configured any location details yet.
@@ -126,7 +120,7 @@ export default function BookingForm({ slotId, price, therapist, duration }) {
 
       <div className="space-y-3 mb-4">
         <div className="flex justify-between text-gray-600 text-sm">
-          <span>Session Fee</span>
+          <span>Session Fee ({duration} mins)</span>
           <span>₹{price}</span>
         </div>
         <div className="flex justify-between text-gray-600 text-sm">
@@ -140,7 +134,35 @@ export default function BookingForm({ slotId, price, therapist, duration }) {
         </div>
       </div>
 
-      <SubmitButton />
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 text-xs rounded-lg flex items-center gap-2">
+          <AlertTriangle size={16} className="shrink-0" />
+          {error}
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={isSubmitting || (!hasOnline && !hasOffline)}
+        className="w-full bg-secondary hover:bg-[#5A7A66] text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-secondary/20 flex items-center justify-center gap-2 group disabled:opacity-70 disabled:cursor-not-allowed"
+      >
+        {isSubmitting ? (
+          <>
+            <Loader2 size={20} className="animate-spin" />
+            Sending...
+          </>
+        ) : (
+          <>
+            <Send size={20} />
+            Send Booking Request
+            <ArrowRight
+              size={18}
+              className="group-hover:translate-x-1 transition-transform"
+            />
+          </>
+        )}
+      </button>
+
       <p className="text-xs text-center text-gray-400 mt-4">
         *No payment required right now. Pay directly to therapist after
         approval.

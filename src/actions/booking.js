@@ -13,9 +13,6 @@ const USERS_COLLECTION = "users";
 const RATES_COLLECTION = "service_rates";
 
 export async function getSlotDetails(slotId) {
-  // ... (Keep existing fetch logic) ...
-  // Note: We might need to adjust this to fetch price based on DURATION later
-  // For now, assuming slotId implies the start time.
   const { databases } = await createAdminClient();
   try {
     const slot = await databases.getDocument(DB_ID, SLOTS_COLLECTION, slotId);
@@ -24,15 +21,12 @@ export async function getSlotDetails(slotId) {
       USERS_COLLECTION,
       slot.therapist_id,
     );
-
-    // Fetch ALL rates
     const { documents: rates } = await databases.listDocuments(
       DB_ID,
       RATES_COLLECTION,
       [Query.equal("therapist_id", slot.therapist_id)],
     );
-
-    return { slot, therapist, rates }; // Return ALL rates so frontend can pick
+    return { slot, therapist, rates };
   } catch (error) {
     return null;
   }
@@ -48,17 +42,19 @@ export async function createBooking(formData) {
   const duration = parseInt(formData.get("duration") || "60"); // 30, 60, 90
 
   try {
+    // 1. Fetch the Starting Slot to get Context
     const startSlot = await databases.getDocument(
       DB_ID,
       SLOTS_COLLECTION,
       startSlotId,
     );
 
-    // Calculate End Time
+    // Calculate Target Time Range
     const startTime = new Date(startSlot.start_time);
     const endTime = new Date(startTime.getTime() + duration * 60 * 1000);
 
-    // 1. Find ALL slots covered by this duration
+    // 2. Query ALL slots falling within this range
+    // We sort by start_time to ensure we can check continuity
     const affectedSlots = await databases.listDocuments(
       DB_ID,
       SLOTS_COLLECTION,
@@ -66,24 +62,47 @@ export async function createBooking(formData) {
         Query.equal("therapist_id", startSlot.therapist_id),
         Query.greaterThanEqual("start_time", startTime.toISOString()),
         Query.lessThan("start_time", endTime.toISOString()),
+        Query.orderAsc("start_time"),
       ],
     );
 
-    // 2. Validate availability
-    // We expect (duration / 30) slots. E.g. 60mins needs 2 slots.
-    const requiredSlots = duration / 30;
-    if (affectedSlots.documents.length < requiredSlots) {
+    // 3. ROBUST VALIDATION
+    // Logic: Iterate through fetched slots. They must:
+    // a) Be unbooked
+    // b) Perfectly bridge the time from startTime to endTime without gaps
+
+    let currentCheckTime = startTime.getTime();
+    let totalCoveredMinutes = 0;
+
+    for (const slot of affectedSlots.documents) {
+      if (slot.is_booked) {
+        return { error: "Part of this time range is already booked." };
+      }
+
+      const sTime = new Date(slot.start_time).getTime();
+      const eTime = new Date(slot.end_time).getTime();
+
+      // Gap Check: The current slot must start exactly where the previous check ended
+      if (sTime !== currentCheckTime) {
+        return {
+          error:
+            "There is a gap in available slots. Cannot book consecutive time.",
+        };
+      }
+
+      // Update trackers
+      totalCoveredMinutes += (eTime - sTime) / (1000 * 60);
+      currentCheckTime = eTime;
+    }
+
+    // Final Coverage Check
+    if (totalCoveredMinutes < duration) {
       return {
-        error: "Consecutive slots are not available for this duration.",
+        error: `Available slots only cover ${totalCoveredMinutes} mins. You need ${duration} mins.`,
       };
     }
 
-    for (const slot of affectedSlots.documents) {
-      if (slot.is_booked)
-        return { error: "Part of this time range is already booked." };
-    }
-
-    // 3. Lock ALL slots
+    // 4. Lock ALL affected slots
     await Promise.all(
       affectedSlots.documents.map((slot) =>
         databases.updateDocument(DB_ID, SLOTS_COLLECTION, slot.$id, {
@@ -92,7 +111,7 @@ export async function createBooking(formData) {
       ),
     );
 
-    // 4. Create Booking
+    // 5. Create Booking
     await databases.createDocument(DB_ID, BOOKINGS_COLLECTION, ID.unique(), {
       client_id: user.$id,
       therapist_id: startSlot.therapist_id,
@@ -122,7 +141,7 @@ export async function createBooking(formData) {
     await sendEmail(therapistUser.email, "REQUEST_RECEIVED", emailData);
   } catch (error) {
     console.error("Booking Error:", error);
-    return { error: "Transaction failed." };
+    return { error: "Transaction failed: " + error.message };
   }
 
   redirect("/success");
