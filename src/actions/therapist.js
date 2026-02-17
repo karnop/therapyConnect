@@ -9,18 +9,36 @@ const USERS_COLLECTION = "users";
 const RATES_COLLECTION = "service_rates";
 const BUCKET_ID = "69272be5003c066e0366";
 
+// Helper to clean inputs (converts "" to null to prevent validation errors)
+const sanitize = (val) =>
+  val && val.toString().trim() !== "" ? val.toString().trim() : null;
+
 export async function updateTherapistProfile(formData) {
   const { account } = await createSessionClient();
-  const user = await account.get();
+  let user;
+
+  try {
+    user = await account.get();
+  } catch (e) {
+    return { error: "Session expired. Please login again." };
+  }
 
   const { databases, storage, users } = await createAdminClient();
 
-  const fullName = formData.get("fullName");
-  const bio = formData.get("bio");
-  const clinicAddress = formData.get("clinicAddress");
-  const metroStation = formData.get("metroStation");
-  const meetingLink = formData.get("meetingLink");
-  const paymentInstructions = formData.get("paymentInstructions");
+  // 1. EXTRACT & SANITIZE
+  const fullName = sanitize(formData.get("fullName"));
+  const bio = sanitize(formData.get("bio"));
+  const clinicAddress = sanitize(formData.get("clinicAddress"));
+  const metroStation = sanitize(formData.get("metroStation"));
+  const meetingLink = sanitize(formData.get("meetingLink"));
+  const paymentInstructions = sanitize(formData.get("paymentInstructions"));
+
+  // Check Bio Length
+  if (bio && bio.length > 8000) {
+    return {
+      error: `Bio is too long (${bio.length} chars). Max allowed is 8000.`,
+    };
+  }
 
   const specialtiesInput = formData.get("specialties");
   const specialties = specialtiesInput
@@ -34,25 +52,40 @@ export async function updateTherapistProfile(formData) {
   let newAvatarId = null;
 
   try {
-    // 1. Avatar Upload
+    // 2. AVATAR UPLOAD
     if (avatarFile && avatarFile.size > 0 && avatarFile.name !== "undefined") {
-      const file = await storage.createFile(BUCKET_ID, ID.unique(), avatarFile);
-      newAvatarId = file.$id;
+      if (avatarFile.size > 5 * 1024 * 1024) {
+        return { error: "Image too large. Please upload an image under 5MB." };
+      }
+      try {
+        const file = await storage.createFile(
+          BUCKET_ID,
+          ID.unique(),
+          avatarFile,
+        );
+        newAvatarId = file.$id;
+      } catch (uploadError) {
+        console.error("Upload failed:", uploadError);
+        return { error: "Failed to upload image. " + uploadError.message };
+      }
     }
 
-    // 2. Profile Update
+    // 3. PREPARE UPDATE OBJECT
     const updateData = {
       full_name: fullName,
       bio: bio,
       specialties: specialties,
       clinic_address: clinicAddress,
       metro_station: metroStation,
-      meeting_link: meetingLink ? meetingLink : null,
+      meeting_link: meetingLink,
       payment_instructions: paymentInstructions,
     };
 
-    if (newAvatarId) updateData.avatar_id = newAvatarId;
+    if (newAvatarId) {
+      updateData.avatar_id = newAvatarId;
+    }
 
+    // 4. DATABASE UPDATE (Self-Healing)
     try {
       await databases.updateDocument(
         DB_ID,
@@ -62,29 +95,36 @@ export async function updateTherapistProfile(formData) {
       );
     } catch (dbError) {
       if (dbError.code === 404) {
-        // Self-healing create if missing
+        console.log("⚠️ Therapist record missing. Creating new...");
         await databases.createDocument(DB_ID, USERS_COLLECTION, user.$id, {
           ...updateData,
           user_id: user.$id,
           role: "therapist",
           phone_number: user.phone || "0000000000",
-          is_verified: true,
+          is_verified: false,
         });
       } else {
         throw dbError;
       }
     }
 
+    // 5. UPDATE AUTH NAME
     if (fullName && fullName !== user.name) {
-      await users.updateName(user.$id, fullName);
+      try {
+        await users.updateName(user.$id, fullName);
+      } catch (e) {
+        // Ignore auth name update errors
+      }
     }
 
-    // 3. Update Rates (Loop through 30, 60, 90)
+    // 6. UPDATE RATES (Loop for 30, 60, 90 mins)
     const durations = [30, 60, 90];
 
     for (const d of durations) {
       const price = formData.get(`price${d}`); // price30, price60, price90
-      if (price) {
+
+      // We check if price is provided (not empty)
+      if (price && price.trim() !== "") {
         const rates = await databases.listDocuments(DB_ID, RATES_COLLECTION, [
           Query.equal("therapist_id", user.$id),
           Query.equal("duration_mins", d),
@@ -104,6 +144,7 @@ export async function updateTherapistProfile(formData) {
             therapist_id: user.$id,
             duration_mins: d,
             price_inr: parseInt(price),
+            is_active: true,
           });
         }
       }
@@ -114,7 +155,8 @@ export async function updateTherapistProfile(formData) {
     return { success: true };
   } catch (error) {
     console.error("Profile Update Error:", error);
-    return { error: error.message };
+    // Return clear error message
+    return { error: error.message.replace("AppwriteException: ", "") };
   }
 }
 
@@ -124,13 +166,18 @@ export async function getTherapistData() {
 
   try {
     const user = await account.get();
+
     let profile;
     try {
       profile = await databases.getDocument(DB_ID, USERS_COLLECTION, user.$id);
     } catch (e) {
       if (e.code === 404)
-        profile = { full_name: user.name, bio: "", specialties: [] };
-      else throw e;
+        return {
+          profile: { full_name: user.name },
+          rates: [],
+          avatarUrl: null,
+        };
+      throw e;
     }
 
     let avatarUrl = null;
@@ -140,7 +187,6 @@ export async function getTherapistData() {
       avatarUrl = `${endpoint}/storage/buckets/${BUCKET_ID}/files/${profile.avatar_id}/view?project=${projectId}`;
     }
 
-    // Fetch ALL rates
     const rates = await databases.listDocuments(DB_ID, RATES_COLLECTION, [
       Query.equal("therapist_id", user.$id),
     ]);
