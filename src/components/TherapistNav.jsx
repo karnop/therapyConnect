@@ -19,26 +19,34 @@ export default function TherapistNav({ user }) {
     { name: "Overview", href: "/therapist/dashboard", icon: LayoutDashboard },
     { name: "Requests", href: "/therapist/requests", icon: Inbox },
     { name: "My Clients", href: "/therapist/clients", icon: Users },
-    { name: "Invoices", href: "/therapist/invoices", icon: FileText }, // NEW
+    { name: "Invoices", href: "/therapist/invoices", icon: FileText },
     { name: "My Schedule", href: "/therapist/schedule", icon: Calendar },
     { name: "Settings", href: "/therapist/settings", icon: Settings },
   ];
 
-  // Helper for active state styles
   const isActive = (path) => pathname === path;
+
+  // Logic: Use full name if short, otherwise split it.
+  const displayName =
+    user?.full_name?.length > 15
+      ? user?.full_name?.split(" ")[0]
+      : user?.full_name;
 
   return (
     <>
+      {/* --- DESKTOP SIDEBAR --- */}
       <aside className="hidden md:flex flex-col w-72 bg-[#F2F5F4] border-r border-gray-200/60 h-[calc(100vh-5rem)] fixed left-0 top-20 z-30">
+        {/* Header: User Card */}
         <div className="p-6 pb-2">
           <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100/50">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center text-secondary font-bold text-lg">
+              <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center text-secondary font-bold text-lg shrink-0">
                 {user?.full_name?.charAt(0) || "T"}
               </div>
               <div className="min-w-0">
+                {/* FIXED: Removed "Dr." prefix. Shows actual name. */}
                 <p className="text-sm font-bold text-primary truncate">
-                  Dr. {user?.full_name?.split(" ")[0] || "Therapist"}
+                  {displayName || "Therapist"}
                 </p>
                 <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
@@ -49,6 +57,7 @@ export default function TherapistNav({ user }) {
           </div>
         </div>
 
+        {/* Navigation Links */}
         <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
           <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
             Menu
@@ -77,6 +86,7 @@ export default function TherapistNav({ user }) {
             </Link>
           ))}
 
+          {/* Decorative Promo */}
           <div className="mt-8 mx-2 bg-gradient-to-br from-secondary/80 to-secondary text-white p-5 rounded-2xl relative overflow-hidden shadow-lg shadow-secondary/20">
             <Sparkles
               className="absolute top-2 right-2 text-white/20"
@@ -90,7 +100,7 @@ export default function TherapistNav({ user }) {
         </nav>
       </aside>
 
-      {/* Mobile Bottom Bar */}
+      {/* --- MOBILE BOTTOM BAR --- */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-gray-200 px-6 py-4 z-50 flex justify-between items-center shadow-[0_-4px_20px_rgba(0,0,0,0.03)] safe-area-pb">
         {navItems.slice(0, 4).map((item) => (
           <Link
@@ -115,9 +125,7 @@ export default function TherapistNav({ user }) {
         ))}
         <Link
           href="/therapist/settings"
-          className={`flex flex-col items-center gap-1.5 transition-all duration-300 ${
-            isActive("/therapist/settings") ? "text-secondary" : "text-gray-400"
-          }`}
+          className={`flex flex-col items-center gap-1.5 transition-all duration-300 ${isActive("/therapist/settings") ? "text-secondary" : "text-gray-400"}`}
         >
           <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center border border-gray-200">
             <span className="text-xs font-bold text-gray-600">

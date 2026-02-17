@@ -1,5 +1,5 @@
 import { getTherapistDashboardData } from "@/actions/dashboard";
-import { format, parseISO, isToday } from "date-fns";
+import { format, parseISO, isToday, differenceInMinutes } from "date-fns"; // added differenceInMinutes
 import {
   Calendar,
   Video,
@@ -22,10 +22,7 @@ import {
 
 export default async function TherapistDashboard() {
   const data = await getTherapistDashboardData();
-
-  // Guard against null data if fetch fails completely
-  if (!data)
-    return <div className="p-10 text-center">Loading Dashboard...</div>;
+  if (!data) return <div className="p-10 text-center">Loading...</div>;
 
   const {
     requests = [],
@@ -37,16 +34,19 @@ export default async function TherapistDashboard() {
   const nextSession = upcoming[0];
   const otherSessions = upcoming.slice(1);
   const firstName = therapistProfile?.full_name?.split(" ")[0] || "Doctor";
-  // Safe date formatting
   const todayDate = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
     day: "numeric",
   });
 
+  // Helper for Duration
+  const getDuration = (start, end) =>
+    differenceInMinutes(parseISO(end), parseISO(start));
+
   return (
     <div className="pb-20">
-      {/* 1. WELCOME HEADER */}
+      {/* 1. HEADER & NOTIFICATIONS (Keep as is) */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
         <div>
           <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">
@@ -60,12 +60,10 @@ export default async function TherapistDashboard() {
           <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-          </span>
+          </span>{" "}
           Practice Online
         </div>
       </div>
-
-      {/* 2. NOTIFICATIONS */}
       {requests.length > 0 && (
         <Link href="/therapist/requests">
           <div className="bg-orange-50 border-l-4 border-orange-500 p-4 rounded-r-xl flex items-center justify-between mb-10 cursor-pointer hover:bg-orange-100 transition-all shadow-sm">
@@ -91,12 +89,12 @@ export default async function TherapistDashboard() {
       <div className="grid lg:grid-cols-3 gap-8 items-start">
         {/* --- LEFT: MAIN SCHEDULE --- */}
         <div className="lg:col-span-2 space-y-8">
-          {/* UP NEXT: PRO CARD */}
+          {/* UP NEXT (Updated duration) */}
           {nextSession ? (
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="bg-gray-50 px-6 py-3 border-b border-gray-200 flex justify-between items-center">
                 <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                  <Clock size={14} className="text-secondary" />
+                  <Clock size={14} className="text-secondary" />{" "}
                   {isTodayIST(nextSession.start_time)
                     ? "Happening Today"
                     : "Next Session"}
@@ -105,19 +103,16 @@ export default async function TherapistDashboard() {
                   {formatTimeIST(nextSession.start_time)}
                 </span>
               </div>
-
               <div className="p-6 md:p-8">
                 <div className="flex flex-col md:flex-row gap-8">
-                  {/* Client Profile */}
                   <div className="flex-1">
                     <div className="flex items-start gap-5 mb-6">
                       <div className="w-16 h-16 bg-[#2D2D2D] rounded-2xl flex items-center justify-center text-2xl font-bold text-white shadow-lg">
-                        {/* SAFE CHECK: client might be null if user deleted */}
                         {nextSession.client?.full_name?.[0] || "?"}
                       </div>
                       <div>
                         <h2 className="text-2xl font-bold text-gray-900">
-                          {nextSession.client?.full_name || "Unknown Client"}
+                          {nextSession.client?.full_name || "Unknown"}
                         </h2>
                         <div className="flex items-center gap-3 mt-1">
                           <span
@@ -127,13 +122,15 @@ export default async function TherapistDashboard() {
                           </span>
                           <span className="text-xs text-gray-400">•</span>
                           <span className="text-xs text-gray-500 font-medium">
-                            60 Min Session
+                            {getDuration(
+                              nextSession.start_time,
+                              nextSession.end_time,
+                            )}{" "}
+                            Min Session
                           </span>
                         </div>
                       </div>
                     </div>
-
-                    {/* Dossier Snapshot */}
                     <div className="grid grid-cols-2 gap-4">
                       <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
                         <span className="text-[10px] font-bold text-gray-400 uppercase">
@@ -168,8 +165,6 @@ export default async function TherapistDashboard() {
                       </div>
                     </div>
                   </div>
-
-                  {/* Actions Column */}
                   <div className="w-full md:w-48 shrink-0 flex flex-col justify-between border-t md:border-t-0 md:border-l border-gray-100 md:pl-8 pt-6 md:pt-0">
                     <div className="space-y-3">
                       <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
@@ -247,7 +242,7 @@ export default async function TherapistDashboard() {
                         <div className="w-px h-10 bg-gray-200"></div>
                         <div>
                           <p className="font-bold text-gray-900 text-sm group-hover:text-secondary transition-colors">
-                            {session.client?.full_name || "Unknown Client"}
+                            {session.client?.full_name}
                           </p>
                           <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
                             <span className="flex items-center gap-1">
@@ -255,6 +250,14 @@ export default async function TherapistDashboard() {
                               {formatTimeIST(session.start_time)}
                             </span>
                             <span className="capitalize">• {session.mode}</span>
+                            {/* DURATION BADGE */}
+                            <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-medium">
+                              {getDuration(
+                                session.start_time,
+                                session.end_time,
+                              )}
+                              m
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -289,7 +292,6 @@ export default async function TherapistDashboard() {
                 MTD
               </span>
             </div>
-
             <div className="mb-2">
               <p className="text-5xl font-bold text-gray-900 tracking-tight">
                 {stats?.sessions || 0}
@@ -305,12 +307,11 @@ export default async function TherapistDashboard() {
             <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2 text-sm uppercase tracking-wide">
               <Users size={16} className="text-gray-400" /> Practice Info
             </h3>
-
             <div className="space-y-4">
               <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl border border-gray-100">
                 <div className="flex flex-col">
                   <span className="text-xs text-gray-500 font-medium">
-                    Current Rate
+                    Standard Rate
                   </span>
                   <span className="text-lg font-bold text-gray-900">
                     ₹{stats?.price_per_session || 0}
@@ -324,7 +325,6 @@ export default async function TherapistDashboard() {
                 </Link>
               </div>
             </div>
-
             <div className="mt-6 pt-6 border-t border-gray-100">
               <Link href="/therapist/settings">
                 <button className="w-full py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors">
