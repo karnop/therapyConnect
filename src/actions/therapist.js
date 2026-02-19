@@ -144,7 +144,6 @@ export async function updateTherapistProfile(formData) {
             therapist_id: user.$id,
             duration_mins: d,
             price_inr: parseInt(price),
-            is_active: true,
           });
         }
       }
