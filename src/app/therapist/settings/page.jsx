@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getTherapistData, updateTherapistProfile } from "@/actions/therapist";
 import { getInvoiceSettings, updateInvoiceSettings } from "@/actions/invoice";
 import {
@@ -20,21 +20,29 @@ import {
   CheckCircle2,
   X,
   Building2,
+  Calendar as CalendarIcon, // ADDED
+  Plug, // ADDED
 } from "lucide-react";
 import Image from "next/image";
 import { SPECIALTIES_LIST, METRO_STATIONS } from "@/lib/constants";
+import {
+  connectGoogleCalendar,
+  disconnectGoogleCalendar,
+} from "@/actions/integrations";
 
 export default function SettingsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("profile");
+  const searchParams = useSearchParams();
 
   // Feedback States
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
   const [data, setData] = useState({ profile: {}, rates: [], avatarUrl: null });
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
 
   const [invoiceForm, setInvoiceForm] = useState({
@@ -74,6 +82,7 @@ export default function SettingsPage() {
         setData(therapistRes);
         setPreviewImage(avatarUrl);
         setMetroQuery(profile.metro_station || "");
+        setIsGoogleConnected(!!profile.google_refresh_token);
 
         setFormData((prev) => ({
           ...prev,
@@ -112,7 +121,11 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+    if (searchParams.get("google_success"))
+      setSuccess("Google Calendar connected successfully!");
+    if (searchParams.get("google_error"))
+      setError("Google connection failed or was cancelled.");
+  }, [searchParams]);
 
   // Handlers
   const handleChange = (e) => {
@@ -192,6 +205,18 @@ export default function SettingsPage() {
     }
   };
 
+  const handleDisconnectGoogle = async () => {
+    setSaving(true);
+    const res = await disconnectGoogleCalendar();
+    if (res.success) {
+      setIsGoogleConnected(false);
+      setSuccess("Google Calendar disconnected.");
+    } else {
+      setError(res.error);
+    }
+    setSaving(false);
+  };
+
   if (loading)
     return (
       <div className="flex justify-center p-20">
@@ -235,6 +260,7 @@ export default function SettingsPage() {
           { id: "profile", label: "Personal Profile" },
           { id: "practice", label: "Practice & Logistics" },
           { id: "billing", label: "Billing & Compliance" },
+          { id: "integrations", label: "Integrations" },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -564,6 +590,74 @@ export default function SettingsPage() {
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary outline-none text-sm"
               />
             </div>
+          </div>
+        </div>
+
+        {/* Tab 4 : integrations */}
+        <div
+          className={
+            activeTab === "integrations" ? "block space-y-8" : "hidden"
+          }
+        >
+          <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                <CalendarIcon size={20} />
+              </div>
+              <h2 className="text-lg font-bold text-primary">
+                Google Calendar Sync
+              </h2>
+            </div>
+            <p className="text-gray-500 text-sm mb-6 ml-11">
+              Automatically push confirmed sessions to your Google Calendar.
+            </p>
+
+            <div className="ml-11 bg-gray-50 p-6 rounded-2xl border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h4 className="font-bold text-gray-800 flex items-center gap-2">
+                  Google Calendar
+                  {isGoogleConnected && (
+                    <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wide">
+                      Connected
+                    </span>
+                  )}
+                </h4>
+                <p className="text-xs text-gray-500 mt-1">
+                  {isGoogleConnected
+                    ? "We will push new appointments directly to your calendar."
+                    : "Connect your account to enable 2-way sync."}
+                </p>
+              </div>
+
+              {isGoogleConnected ? (
+                <button
+                  type="button"
+                  onClick={handleDisconnectGoogle}
+                  className="text-red-600 bg-white border border-red-200 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-red-50 transition-colors whitespace-nowrap"
+                >
+                  Disconnect
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => connectGoogleCalendar()} // Triggers the server action
+                  className="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md shadow-blue-200 hover:bg-blue-700 transition-colors flex items-center gap-2 whitespace-nowrap"
+                >
+                  <Plug size={16} /> Connect Google
+                </button>
+              )}
+            </div>
+
+            {!isGoogleConnected && (
+              <div className="ml-11 mt-4 p-4 bg-yellow-50 text-yellow-800 text-xs rounded-xl border border-yellow-200 flex items-start gap-2">
+                <AlertTriangle size={16} className="shrink-0" />
+                <p>
+                  Google may display an "Unverified App" warning during
+                  connection. This is normal during our beta phase. Click
+                  "Advanced" and "Proceed" to connect.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

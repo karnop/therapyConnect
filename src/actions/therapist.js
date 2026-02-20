@@ -34,9 +34,9 @@ export async function updateTherapistProfile(formData) {
   const paymentInstructions = sanitize(formData.get("paymentInstructions"));
 
   // Check Bio Length
-  if (bio && bio.length > 8000) {
+  if (bio && bio.length > 6000) {
     return {
-      error: `Bio is too long (${bio.length} chars). Max allowed is 8000.`,
+      error: `Bio is too long (${bio.length} chars). Max allowed is 6000.`,
     };
   }
 

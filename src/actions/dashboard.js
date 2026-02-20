@@ -3,9 +3,17 @@
 import { createSessionClient, createAdminClient } from "@/lib/appwrite";
 import { Query } from "node-appwrite";
 import { revalidatePath } from "next/cache";
-import { sendEmail } from "@/lib/email";
 import { format, parseISO } from "date-fns";
 import { encrypt, decrypt } from "@/lib/crypto";
+import { pushBookingToGoogle } from "@/actions/integrations";
+
+// Safely import email utility
+let sendEmail;
+try {
+  sendEmail = require("@/lib/email").sendEmail;
+} catch (e) {
+  sendEmail = null;
+}
 
 const DB_ID = "therapy_connect_db";
 const BOOKINGS_COLLECTION = "bookings";
@@ -88,7 +96,8 @@ export async function getClientBookings() {
 
 // --- THERAPIST: HANDLE REQUESTS ---
 export async function handleBookingRequest(bookingId, action) {
-  const { databases } = await createAdminClient();
+  // CRITICAL FIX: Destructure 'users' from admin client
+  const { databases, users } = await createAdminClient();
 
   try {
     const booking = await databases.getDocument(
@@ -113,7 +122,6 @@ export async function handleBookingRequest(bookingId, action) {
       therapistName: therapist.full_name,
       date: format(parseISO(booking.start_time), "EEEE, MMMM do"),
       time: format(parseISO(booking.start_time), "h:mm a"),
-      // FIX: Ensure this is never empty
       paymentInstructions:
         therapist.payment_instructions ||
         "Please contact the therapist directly for payment details.",
@@ -124,8 +132,35 @@ export async function handleBookingRequest(bookingId, action) {
         status: "awaiting_payment",
       });
 
-      await sendEmail(client.email, "REQUEST_ACCEPTED", emailData);
-    } else if (action === "decline") {
+      // 1. Google Sync (Safe Block)
+      try {
+        // CRITICAL FIX: Changed requestId to bookingId
+        const googleRes = await pushBookingToGoogle(bookingId);
+        if (googleRes?.error)
+          console.log("⚠️ Google Sync Note:", googleRes.error);
+        else console.log("✅ Added to Google Calendar!");
+      } catch (googleErr) {
+        console.error("❌ Google Calendar Error:", googleErr);
+      }
+
+      // 2. Email Sending (Safe Block)
+      if (sendEmail) {
+        try {
+          const clientAuth = await users.get(booking.client_id);
+          if (clientAuth && clientAuth.email) {
+            await sendEmail(clientAuth.email, "REQUEST_ACCEPTED", emailData);
+          } else {
+            console.log(
+              "⚠️ No email found for client, skipping email notification.",
+            );
+          }
+        } catch (emailErr) {
+          console.error("❌ Email Sending Failed:", emailErr);
+        }
+      }
+    }
+    // DECLINE
+    else if (action === "decline") {
       await databases.updateDocument(DB_ID, BOOKINGS_COLLECTION, bookingId, {
         status: "cancelled",
       });
@@ -147,7 +182,17 @@ export async function handleBookingRequest(bookingId, action) {
         );
       }
 
-      await sendEmail(client.email, "REQUEST_DECLINED", emailData);
+      // Safe Email Block
+      if (sendEmail) {
+        try {
+          const clientAuth = await users.get(booking.client_id);
+          if (clientAuth && clientAuth.email) {
+            await sendEmail(clientAuth.email, "REQUEST_DECLINED", emailData);
+          }
+        } catch (emailErr) {
+          console.error("❌ Email Sending Failed:", emailErr);
+        }
+      }
     }
 
     revalidatePath("/therapist/dashboard");
@@ -161,7 +206,8 @@ export async function handleBookingRequest(bookingId, action) {
 
 // --- THERAPIST: CONFIRM PAYMENT ---
 export async function confirmBookingPayment(bookingId, isValid) {
-  const { databases } = await createAdminClient();
+  // CRITICAL FIX: Destructure 'users' from admin client
+  const { databases, users } = await createAdminClient();
 
   try {
     const booking = await databases.getDocument(
@@ -185,22 +231,30 @@ export async function confirmBookingPayment(bookingId, isValid) {
         status: "confirmed",
       });
 
-      const emailData = {
-        clientName: client.full_name || "Client",
-        therapistName: therapist.full_name,
-        meetingLink: therapist.meeting_link,
-        address: `${therapist.clinic_address} (${therapist.metro_station})`,
-      };
-      await sendEmail(client.email, "PAYMENT_CONFIRMED", emailData);
+      // Safe Email Block
+      if (sendEmail) {
+        const emailData = {
+          clientName: client.full_name || "Client",
+          therapistName: therapist.full_name,
+          meetingLink: therapist.meeting_link,
+          address: `${therapist.clinic_address} (${therapist.metro_station})`,
+        };
+
+        try {
+          const clientAuth = await users.get(booking.client_id);
+          if (clientAuth && clientAuth.email) {
+            await sendEmail(clientAuth.email, "PAYMENT_CONFIRMED", emailData);
+          }
+        } catch (emailErr) {
+          console.error("❌ Email Sending Failed:", emailErr);
+        }
+      }
     } else {
       // Reject proof -> Send back to awaiting payment
-      // Note: In V2 we should add a 'rejection_reason' field
       await databases.updateDocument(DB_ID, BOOKINGS_COLLECTION, bookingId, {
         status: "awaiting_payment",
         transaction_id: null,
       });
-
-      // Optional: Send "Payment Rejected" email here
     }
 
     revalidatePath("/therapist/requests");
@@ -296,26 +350,6 @@ export async function getTherapistDashboardData() {
     Query.limit(1),
   ]);
   const price = rateDocs.documents[0]?.price_inr || 0;
-
-  const enrich = async (list) => {
-    return await Promise.all(
-      list.map(async (booking) => {
-        try {
-          const client = await databases.getDocument(
-            DB_ID,
-            USERS_COLLECTION,
-            booking.client_id,
-          );
-          return {
-            ...booking,
-            client: { full_name: client.full_name, phone: client.phone_number },
-          };
-        } catch (e) {
-          return booking;
-        }
-      }),
-    );
-  };
 
   const enrichSimple = async (list) => {
     return await Promise.all(
