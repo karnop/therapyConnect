@@ -652,9 +652,9 @@ export default function SettingsPage() {
               <div className="ml-11 mt-4 p-4 bg-yellow-50 text-yellow-800 text-xs rounded-xl border border-yellow-200 flex items-start gap-2">
                 <AlertTriangle size={16} className="shrink-0" />
                 <p>
-                  Google may display an "Unverified App" warning during
-                  connection. This is normal during our beta phase. Click
-                  "Advanced" and "Proceed" to connect.
+                  Google may display an &quot;Unverified App&quot; warning
+                  during connection. This is normal during our beta phase. Click
+                  &quot;Advanced&quot; and &quot;Proceed&quot; to connect.
                 </p>
               </div>
             )}

@@ -6,13 +6,12 @@ import {
   Video,
   MapPin,
   Sparkles,
-  Users,
   ArrowRight,
   AlertCircle,
   Clock,
-  ChevronRight,
   Activity,
-  ExternalLink,
+  Plug,
+  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -24,7 +23,12 @@ import {
 
 export default async function TherapistDashboard() {
   const data = await getTherapistDashboardData();
-  if (!data) return <div className="p-10 text-center">Loading...</div>;
+  if (!data)
+    return (
+      <div className="min-h-screen flex items-center justify-center text-gray-400">
+        Loading...
+      </div>
+    );
 
   const {
     requests = [],
@@ -48,12 +52,11 @@ export default async function TherapistDashboard() {
     }))
     .filter((ge) => ge.start_time);
 
-  // 3. THE MAGIC: MERGE AND SORT EVERYTHING CHRONOLOGICALLY
+  // 3. MERGE AND SORT EVERYTHING CHRONOLOGICALLY
   const allAgendaItems = [...upcoming, ...formattedGoogleEvents].sort(
     (a, b) => new Date(a.start_time) - new Date(b.start_time),
   );
 
-  // Now the "Next Session" could be a Google Event OR a Platform Event!
   const nextSession = allAgendaItems[0];
   const otherSessions = allAgendaItems.slice(1);
 
@@ -70,349 +73,372 @@ export default async function TherapistDashboard() {
   };
 
   return (
-    <div className="pb-20">
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+    <div className="pb-24 max-w-7xl mx-auto">
+      {/* --- HEADER --- */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12 mt-4">
         <div>
-          <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">
+          <p className="text-secondary text-xs font-bold uppercase tracking-[0.2em] mb-2">
             {todayDate}
           </p>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Good {getGreetingIST()}, {firstName}
+          <h1 className="text-4xl font-bold text-primary tracking-tight">
+            Good {getGreetingIST()}, {firstName}.
           </h1>
         </div>
-        <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm text-xs font-bold text-gray-600 uppercase tracking-wider">
-          <span className="relative flex h-2 w-2">
+        <div className="flex items-center gap-3 bg-white/60 backdrop-blur-md px-5 py-2.5 rounded-full border border-gray-200/50 shadow-sm w-fit">
+          <div className="relative flex h-2.5 w-2.5">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+          </div>
+          <span className="text-[10px] font-bold text-gray-700 uppercase tracking-widest">
+            Accepting Sessions
           </span>
-          Practice Online
         </div>
       </div>
 
-      {/* NOTIFICATIONS */}
+      {/* --- NOTIFICATIONS --- */}
       {requests.length > 0 && (
         <Link href="/therapist/requests">
-          <div className="bg-orange-50 border-l-4 border-orange-500 p-4 rounded-r-xl flex items-center justify-between mb-10 cursor-pointer hover:bg-orange-100 transition-all shadow-sm">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-white rounded-lg shadow-sm text-orange-600">
+          <div className="group bg-white p-5 rounded-2xl border border-gray-100 shadow-[0_4px_20px_rgb(0,0,0,0.03)] mb-10 flex items-center justify-between hover:border-secondary/30 hover:shadow-md transition-all cursor-pointer">
+            <div className="flex items-center gap-5">
+              <div className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center text-orange-500 shrink-0">
                 <AlertCircle size={20} />
               </div>
               <div>
-                <span className="font-bold text-gray-900 block text-sm">
-                  Pending Requests
-                </span>
-                <span className="text-gray-600 text-xs">
-                  You have {requests.length} client requests waiting.
-                </span>
+                <h3 className="font-bold text-primary text-sm">
+                  Action Required
+                </h3>
+                <p className="text-gray-500 text-sm mt-0.5">
+                  You have {requests.length} pending booking request
+                  {requests.length > 1 ? "s" : ""} waiting for approval.
+                </p>
               </div>
             </div>
-            <ArrowRight size={18} className="text-orange-400" />
+            <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-secondary group-hover:text-white transition-colors text-gray-400 shrink-0">
+              <ArrowRight size={18} />
+            </div>
           </div>
         </Link>
       )}
 
-      <div className="grid lg:grid-cols-3 gap-8 items-start">
-        {/* --- LEFT: MAIN SCHEDULE --- */}
-        <div className="lg:col-span-2 space-y-8">
-          {/* UP NEXT CARD (Dynamic UI based on source) */}
-          {nextSession ? (
-            nextSession.isGoogle ? (
-              // --- GOOGLE EVENT UI ---
-              <div className="bg-white rounded-3xl border border-blue-100 shadow-md overflow-hidden relative">
-                <div className="absolute top-0 left-0 w-2 h-full bg-blue-500"></div>
-                <div className="bg-blue-50/50 px-6 py-4 border-b border-blue-100 flex justify-between items-center pl-8">
-                  <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider flex items-center gap-2">
-                    <CalendarIcon size={14} /> From Google Calendar
-                  </h3>
-                  <span className="text-blue-900 font-mono font-bold bg-white px-3 py-1 rounded-lg border border-blue-100 shadow-sm">
-                    {formatTimeIST(nextSession.start_time)}
-                  </span>
-                </div>
-                <div className="p-6 md:p-8 pl-8">
-                  <div className="flex items-center gap-5">
-                    <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-500 shadow-inner border border-blue-100">
-                      <ExternalLink size={24} />
+      {/* --- MAIN GRID --- */}
+      <div className="grid lg:grid-cols-12 gap-8 lg:gap-12 items-start">
+        {/* LEFT COLUMN (8 Cols) */}
+        <div className="lg:col-span-8 space-y-12">
+          {/* UP NEXT SECTION */}
+          <section>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                Happening Next
+              </h2>
+            </div>
+
+            {nextSession ? (
+              nextSession.isGoogle ? (
+                // --- PREMIUM GOOGLE EVENT CARD ---
+                <div className="bg-white rounded-[2rem] p-8 md:p-10 border border-blue-100/50 shadow-[0_8px_30px_rgb(59,130,246,0.05)] relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50/50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+                    <div className="flex items-center gap-6">
+                      <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-500 border border-blue-100/50 shrink-0 shadow-inner">
+                        <CalendarIcon size={24} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-blue-500 font-bold uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                          <Plug size={12} /> Google Calendar
+                        </p>
+                        <h3 className="text-2xl font-bold text-primary tracking-tight truncate max-w-[250px] md:max-w-md">
+                          {nextSession.client?.full_name}
+                        </h3>
+                      </div>
                     </div>
-                    <div>
-                      <h2 className="text-2xl font-bold text-gray-900">
-                        {nextSession.client?.full_name}
-                      </h2>
-                      <div className="flex items-center gap-3 mt-2">
-                        <span className="text-xs px-2.5 py-1 rounded-md font-bold uppercase tracking-wide bg-gray-100 text-gray-600">
-                          External Event
-                        </span>
-                        <span className="text-xs text-gray-400">•</span>
-                        <span className="text-sm text-gray-500 font-medium">
+                    <div className="text-left md:text-right border-t md:border-t-0 pt-4 md:pt-0 border-gray-100">
+                      <p className="text-xl font-bold text-primary">
+                        {formatTimeIST(nextSession.start_time)}
+                      </p>
+                      <p className="text-xs text-gray-400 font-medium mt-1 uppercase tracking-wider">
+                        {getDuration(
+                          nextSession.start_time,
+                          nextSession.end_time,
+                        )}{" "}
+                        Mins
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                // --- PREMIUM PLATFORM EVENT CARD ---
+                <div className="bg-white rounded-[2rem] p-8 md:p-10 border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-secondary/[0.03] rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 relative z-10">
+                    <div className="flex items-center gap-6">
+                      <div className="w-20 h-20 bg-[#2D2D2D] rounded-full flex items-center justify-center text-white text-3xl font-light shadow-xl shadow-primary/10 shrink-0">
+                        {nextSession.client?.full_name?.[0] || "?"}
+                      </div>
+                      <div>
+                        <h3 className="text-3xl font-bold text-primary tracking-tight truncate max-w-[200px] md:max-w-sm">
+                          {nextSession.client?.full_name || "Unknown"}
+                        </h3>
+                        <p className="text-gray-500 font-medium mt-2 flex items-center gap-2 text-sm">
+                          <Clock size={16} className="text-secondary" />
+                          {formatTimeIST(nextSession.start_time)} •{" "}
                           {getDuration(
                             nextSession.start_time,
                             nextSession.end_time,
                           )}{" "}
-                          Min Block
-                        </span>
+                          Mins
+                        </p>
                       </div>
+                    </div>
+
+                    <div className="flex flex-col items-start md:items-end gap-3 pt-2 md:pt-0">
+                      <span className="bg-gray-50 text-gray-600 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-widest flex items-center gap-1.5 border border-gray-100">
+                        {nextSession.mode === "online" ? (
+                          <Video size={14} />
+                        ) : (
+                          <MapPin size={14} />
+                        )}
+                        {nextSession.mode}
+                      </span>
+                      {nextSession.mode === "online" && (
+                        <a
+                          href={therapistProfile.meeting_link || "#"}
+                          target="_blank"
+                          className="text-sm font-bold text-secondary hover:text-primary transition-colors flex items-center gap-1"
+                        >
+                          Join Room <ArrowRight size={14} />
+                        </a>
+                      )}
                     </div>
                   </div>
-                </div>
-              </div>
-            ) : (
-              // --- PLATFORM EVENT UI (Rich Data) ---
-              <div className="bg-white rounded-3xl border border-gray-200 shadow-md overflow-hidden relative">
-                <div className="absolute top-0 left-0 w-2 h-full bg-secondary"></div>
-                <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center pl-8">
-                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                    <Clock size={14} className="text-secondary" />{" "}
-                    {isTodayIST(nextSession.start_time)
-                      ? "Happening Today"
-                      : "Next Session"}
-                  </h3>
-                  <span className="text-gray-900 font-mono font-bold bg-white px-3 py-1 rounded-lg border border-gray-200 shadow-sm">
-                    {formatTimeIST(nextSession.start_time)}
-                  </span>
-                </div>
-                <div className="p-6 md:p-8 pl-8">
-                  <div className="flex flex-col md:flex-row gap-8">
-                    <div className="flex-1">
-                      <div className="flex items-start gap-5 mb-6">
-                        <div className="w-16 h-16 bg-[#2D2D2D] rounded-2xl flex items-center justify-center text-2xl font-bold text-white shadow-lg">
-                          {nextSession.client?.full_name?.[0] || "?"}
-                        </div>
-                        <div>
-                          <h2 className="text-2xl font-bold text-gray-900">
-                            {nextSession.client?.full_name || "Unknown"}
-                          </h2>
-                          <div className="flex items-center gap-3 mt-2">
-                            <span
-                              className={`text-xs px-2.5 py-1 rounded-md font-bold uppercase tracking-wide ${nextSession.mode === "online" ? "bg-blue-50 text-blue-700" : "bg-orange-50 text-orange-700"}`}
-                            >
-                              {nextSession.mode}
-                            </span>
-                            <span className="text-xs text-gray-400">•</span>
-                            <span className="text-sm text-gray-500 font-medium">
-                              {getDuration(
-                                nextSession.start_time,
-                                nextSession.end_time,
-                              )}{" "}
-                              Min Session
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                            Mood Score
-                          </span>
-                          <div className="flex items-end gap-2 mt-2">
-                            <span className="text-2xl font-bold text-gray-900 leading-none">
-                              {nextSession.client_mood || "-"}
-                              <span className="text-sm text-gray-400">/10</span>
-                            </span>
-                            {nextSession.client_mood && (
-                              <div
-                                className={`h-1.5 flex-1 rounded-full mb-1 ${nextSession.client_mood < 5 ? "bg-red-200" : "bg-green-200"}`}
-                              >
-                                <div
-                                  className={`h-full rounded-full ${nextSession.client_mood < 5 ? "bg-red-500" : "bg-green-500"}`}
-                                  style={{
-                                    width: `${nextSession.client_mood * 10}%`,
-                                  }}
-                                ></div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                            Focus Area
-                          </span>
-                          <p className="text-sm font-medium text-gray-900 mt-2 truncate">
-                            {nextSession.client_intake || "General Check-in"}
-                          </p>
-                        </div>
-                      </div>
+
+                  {/* Minimalist Dossier Snapshot */}
+                  <div className="bg-[#FAFAF8] rounded-2xl p-6 border border-gray-100 flex flex-col md:flex-row gap-8 relative z-10">
+                    <div className="flex-1 md:border-r border-gray-200/60 md:pr-8">
+                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-2">
+                        Focus Area
+                      </p>
+                      <p className="text-sm text-primary font-medium leading-relaxed">
+                        {nextSession.client_intake ||
+                          "General check-in and ongoing progress review."}
+                      </p>
                     </div>
-                    <div className="w-full md:w-48 shrink-0 flex flex-col justify-between border-t md:border-t-0 md:border-l border-gray-100 md:pl-8 pt-6 md:pt-0">
-                      <div className="space-y-3">
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
-                          Actions
-                        </p>
-                        {nextSession.mode === "online" ? (
-                          <a
-                            href={therapistProfile.meeting_link || "#"}
-                            target="_blank"
-                            className="w-full bg-[#2D2D2D] text-white px-4 py-3.5 rounded-xl font-bold text-sm hover:bg-black transition-all shadow-md flex items-center justify-center gap-2"
-                          >
-                            <Video size={16} /> Join Room
-                          </a>
-                        ) : (
-                          <div className="w-full bg-gray-100 text-gray-500 px-4 py-3.5 rounded-xl font-bold text-sm text-center border border-gray-200">
-                            Wait for Arrival
+                    <div className="md:w-1/3 flex flex-col justify-center">
+                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-2">
+                        Current Mood
+                      </p>
+                      <div className="flex items-center gap-4">
+                        <span className="text-3xl font-light text-primary leading-none">
+                          {nextSession.client_mood || "-"}
+                        </span>
+                        {nextSession.client_mood && (
+                          <div className="h-1.5 flex-1 rounded-full bg-gray-200 overflow-hidden">
+                            <div
+                              className="h-full bg-secondary rounded-full"
+                              style={{
+                                width: `${nextSession.client_mood * 10}%`,
+                              }}
+                            ></div>
                           </div>
                         )}
-                        <Link href={`/therapist/session/${nextSession.$id}`}>
-                          <button className="w-full bg-white border border-gray-200 text-gray-700 px-4 py-3.5 rounded-xl font-bold text-sm hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-2">
-                            <Activity size={16} /> Full Dossier
-                          </button>
-                        </Link>
                       </div>
                     </div>
                   </div>
+
+                  <div className="mt-8 pt-8 border-t border-gray-100 flex items-center relative z-10">
+                    <Link
+                      href={`/therapist/session/${nextSession.$id}`}
+                      className="text-gray-500 hover:text-primary text-sm font-bold transition-colors flex items-center gap-2"
+                    >
+                      Open Full Dossier <ChevronRight size={16} />
+                    </Link>
+                  </div>
                 </div>
+              )
+            ) : (
+              // --- EMPTY STATE ---
+              <div className="bg-white p-16 rounded-[2rem] border border-dashed border-gray-200 text-center flex flex-col items-center">
+                <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6 text-gray-300">
+                  <CalendarIcon size={32} strokeWidth={1.5} />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2 tracking-tight">
+                  Schedule Clear
+                </h3>
+                <p className="text-gray-500 text-sm max-w-sm">
+                  You have no upcoming sessions or Google events for the
+                  foreseeable future.
+                </p>
+                <Link
+                  href="/therapist/schedule"
+                  className="mt-8 text-sm font-bold text-white bg-secondary px-6 py-3 rounded-xl hover:bg-[#4A6A56] transition-colors shadow-sm"
+                >
+                  Manage Availability
+                </Link>
               </div>
-            )
-          ) : (
-            <div className="bg-white p-12 rounded-3xl border-2 border-dashed border-gray-200 text-center">
-              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CalendarIcon size={24} className="text-gray-400" />
-              </div>
-              <h3 className="text-lg font-bold text-gray-900">
-                Schedule Clear
-              </h3>
-              <p className="text-gray-500 text-sm mt-1">
-                No upcoming sessions or Google events.
-              </p>
-              <Link
-                href="/therapist/schedule"
-                className="inline-block mt-4 text-sm font-bold text-secondary hover:underline"
-              >
-                Manage Availability
-              </Link>
-            </div>
-          )}
+            )}
+          </section>
 
-          {/* COMBINED AGENDA LIST */}
+          {/* UPCOMING TIMELINE */}
           {otherSessions.length > 0 && (
-            <div>
-              <h3 className="font-bold text-gray-900 mb-5 flex items-center gap-2 text-sm uppercase tracking-wide">
-                Upcoming Timeline
-                <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs font-bold">
-                  {otherSessions.length}
-                </span>
-              </h3>
-              <div className="bg-white rounded-3xl border border-gray-200 shadow-sm divide-y divide-gray-100 overflow-hidden">
-                {otherSessions.map((session, idx) => (
-                  <div
-                    key={session.$id || idx}
-                    className={`block transition-colors ${session.isGoogle ? "hover:bg-blue-50/30" : "hover:bg-gray-50 group"}`}
-                  >
-                    <div className="p-5 flex items-center justify-between">
-                      <div className="flex items-center gap-5">
-                        {/* Date Box */}
+            <section>
+              <div className="flex items-center justify-between mb-8 mt-4">
+                <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                  Future Agenda
+                </h2>
+              </div>
+
+              {/* The sleek vertical timeline */}
+              <div className="relative pl-4 md:pl-0">
+                {/* The Line */}
+                <div className="absolute left-[27px] md:left-[119px] top-6 bottom-6 w-px bg-gray-200/60 z-0"></div>
+
+                <div className="space-y-6 relative z-10">
+                  {otherSessions.map((session, idx) => (
+                    <div
+                      key={session.$id || idx}
+                      className="relative flex flex-col md:flex-row md:items-start gap-6 group"
+                    >
+                      {/* Desktop Time Column */}
+                      <div className="hidden md:block w-24 text-right pt-5 shrink-0">
+                        <p className="text-sm font-bold text-primary">
+                          {formatTimeIST(session.start_time)}
+                        </p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
+                          {formatDateIST(session.start_time, "month")}{" "}
+                          {formatDateIST(session.start_time, "day")}
+                        </p>
+                      </div>
+
+                      {/* Timeline Node */}
+                      <div className="absolute left-[-17px] md:static w-14 flex justify-center pt-6 shrink-0 z-10">
                         <div
-                          className={`flex flex-col items-center min-w-[55px] p-2 rounded-xl ${session.isGoogle ? "bg-blue-50 text-blue-700" : "bg-gray-50 text-gray-700"}`}
-                        >
-                          <span className="text-[10px] font-bold uppercase opacity-70">
-                            {formatDateIST(session.start_time, "month")}
-                          </span>
-                          <span className="text-xl font-black leading-none mt-0.5">
-                            {formatDateIST(session.start_time, "day")}
-                          </span>
-                        </div>
+                          className={`w-3 h-3 rounded-full border-2 border-white ring-4 ring-[#FAFAF8] ${session.isGoogle ? "bg-blue-400" : "bg-secondary"}`}
+                        ></div>
+                      </div>
 
-                        <div>
-                          <p
-                            className={`font-bold text-sm truncate max-w-[200px] md:max-w-xs ${session.isGoogle ? "text-gray-700" : "text-gray-900 group-hover:text-secondary transition-colors"}`}
-                          >
-                            {session.client?.full_name}
-                          </p>
-                          <div className="flex items-center gap-2 text-xs text-gray-500 mt-1.5">
-                            <span className="flex items-center gap-1 font-medium text-gray-700">
-                              <Clock size={12} />{" "}
+                      {/* Event Card */}
+                      <Link
+                        href={
+                          session.isGoogle
+                            ? "#"
+                            : `/therapist/session/${session.$id}`
+                        }
+                        className={`flex-1 block bg-white p-6 rounded-2xl border transition-all duration-300 ${session.isGoogle ? "border-blue-50 hover:border-blue-100 hover:shadow-[0_4px_20px_rgb(59,130,246,0.04)] cursor-default" : "border-gray-100 hover:border-secondary/20 hover:shadow-[0_4px_20px_rgb(0,0,0,0.03)] cursor-pointer"}`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            {/* Mobile Time (Hidden on Desktop) */}
+                            <p className="md:hidden text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                              {formatDateIST(session.start_time, "short")} •{" "}
                               {formatTimeIST(session.start_time)}
-                            </span>
-                            <span className="text-gray-300">•</span>
+                            </p>
 
-                            {session.isGoogle ? (
-                              <span className="text-blue-600 font-bold flex items-center gap-1 uppercase tracking-wider text-[10px]">
-                                <CalendarIcon size={10} /> Google
-                              </span>
-                            ) : (
-                              <span className="text-gray-500 font-medium flex items-center gap-1 uppercase tracking-wider text-[10px]">
+                            <h4 className="font-bold text-primary tracking-tight">
+                              {session.client?.full_name}
+                            </h4>
+                            <div className="flex items-center gap-3 text-xs text-gray-500 mt-2">
+                              {session.isGoogle ? (
+                                <span className="text-blue-500 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1">
+                                  <CalendarIcon size={10} /> Google
+                                </span>
+                              ) : (
+                                <span className="text-gray-400 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1">
+                                  Platform Event
+                                </span>
+                              )}
+                              <span className="text-gray-300">•</span>
+                              <span className="font-medium">
                                 {getDuration(
                                   session.start_time,
                                   session.end_time,
-                                )}
-                                m Platform
+                                )}{" "}
+                                Mins
                               </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-4">
-                        {!session.isGoogle && session.is_shared && (
-                          <span className="hidden md:flex bg-yellow-50 text-yellow-700 px-3 py-1 rounded-full text-[10px] uppercase tracking-wider font-bold items-center gap-1">
-                            <Sparkles size={10} /> Prep Ready
-                          </span>
-                        )}
-                        {!session.isGoogle && (
-                          <Link href={`/therapist/session/${session.$id}`}>
-                            <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-secondary group-hover:text-white transition-all text-gray-400">
-                              <ChevronRight size={18} />
                             </div>
-                          </Link>
-                        )}
-                      </div>
+                          </div>
+
+                          {!session.isGoogle && (
+                            <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-secondary group-hover:text-white transition-colors text-gray-300">
+                              <ChevronRight size={16} />
+                            </div>
+                          )}
+                        </div>
+                      </Link>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            </section>
           )}
         </div>
 
-        {/* --- RIGHT: ANALYTICS WIDGETS --- */}
-        <div className="lg:col-span-1 space-y-6">
-          <div className="bg-white p-6 md:p-8 rounded-3xl border border-gray-200 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-green-50 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl"></div>
-            <div className="flex items-center justify-between mb-6 relative">
-              <div className="flex items-center gap-2 text-sm font-bold text-gray-500 uppercase tracking-wider">
-                <Activity size={16} /> Activity
-              </div>
-              <span className="text-[10px] font-bold bg-green-100 text-green-700 px-2 py-1 rounded-md uppercase tracking-wider">
-                This Month
-              </span>
+        {/* --- RIGHT COLUMN (4 Cols) --- */}
+        <div className="lg:col-span-4 space-y-6">
+          {/* Dark Mode Activity Widget */}
+          <div className="bg-[#2D2D2D] rounded-[2rem] p-8 text-white relative overflow-hidden shadow-xl shadow-gray-900/10">
+            <div className="absolute top-0 right-0 p-8 opacity-5">
+              <Activity size={120} strokeWidth={1} />
             </div>
-            <div className="mb-2 relative">
-              <p className="text-6xl font-black text-gray-900 tracking-tighter">
+            <p className="text-white/50 text-[10px] font-bold uppercase tracking-[0.2em] mb-8">
+              This Month
+            </p>
+            <div className="mb-2 relative z-10">
+              <p className="text-7xl font-light tracking-tighter mb-1">
                 {stats?.sessions || 0}
               </p>
-              <p className="text-sm font-medium text-gray-500 mt-2">
+              <p className="text-sm text-white/70 font-medium">
                 Platform sessions completed
               </p>
             </div>
           </div>
 
-          <div className="bg-white p-6 md:p-8 rounded-3xl border border-gray-200 shadow-sm">
-            <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2 text-sm uppercase tracking-wide">
-              <Users size={16} className="text-gray-400" /> Practice Info
+          {/* Sleek Settings Widget */}
+          <div className="bg-white rounded-[2rem] p-8 border border-gray-100 shadow-[0_4px_20px_rgb(0,0,0,0.02)]">
+            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-6">
+              Practice Setup
             </h3>
+
             <div className="space-y-4">
-              <div className="flex justify-between items-center p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                <div className="flex flex-col">
-                  <span className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-0.5">
-                    Standard Rate
-                  </span>
-                  <span className="text-xl font-bold text-gray-900">
-                    ₹{stats?.price_per_session || 0}
-                  </span>
-                </div>
-                <Link
-                  href="/therapist/settings"
-                  className="text-xs font-bold text-secondary bg-secondary/10 px-3 py-1.5 rounded-lg hover:bg-secondary/20 transition-colors"
+              <div className="flex justify-between items-center py-4 border-b border-gray-50">
+                <span className="text-sm font-medium text-gray-500">
+                  Standard Rate
+                </span>
+                <span className="text-base font-bold text-primary">
+                  ₹{stats?.price_per_session || 0}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-4 border-b border-gray-50">
+                <span className="text-sm font-medium text-gray-500">
+                  Integration
+                </span>
+                <span
+                  className={`text-xs font-bold uppercase tracking-wider ${rawGoogleEvents.length > 0 ? "text-blue-500" : "text-gray-300"}`}
                 >
-                  Edit
-                </Link>
+                  {rawGoogleEvents.length > 0 ? "Active" : "None"}
+                </span>
               </div>
             </div>
-            <div className="mt-6 pt-6 border-t border-gray-100">
-              <Link href="/therapist/settings">
-                <button className="w-full py-3 rounded-xl border-2 border-gray-100 text-sm font-bold text-gray-600 hover:border-gray-200 hover:bg-gray-50 transition-all">
-                  Manage Profile Settings
-                </button>
-              </Link>
-            </div>
+
+            <Link
+              href="/therapist/settings"
+              className="mt-8 flex items-center justify-center gap-2 text-xs font-bold text-secondary uppercase tracking-widest hover:text-primary transition-colors w-full py-3 bg-gray-50 rounded-xl hover:bg-gray-100"
+            >
+              Manage Settings
+            </Link>
+          </div>
+
+          {/* Help/Support Block */}
+          <div className="bg-[#FAFAF8] rounded-[2rem] p-8 border border-gray-100 text-center">
+            <p className="text-sm font-medium text-gray-600 leading-relaxed mb-4">
+              Need help setting up your availability or payments?
+            </p>
+            <a
+              href="mailto:support@therapyconnect.com"
+              className="text-sm font-bold text-primary hover:text-secondary transition-colors underline underline-offset-4"
+            >
+              Contact Support
+            </a>
           </div>
         </div>
       </div>
