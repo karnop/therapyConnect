@@ -57,7 +57,9 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <ComingSoonLink>Care Packages</ComingSoonLink>
+                <Link href="/for-business" className="hover:underline">
+                  For businesses
+                </Link>
               </li>
             </ul>
           </div>
