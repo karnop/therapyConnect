@@ -26,6 +26,7 @@ export default function BookingWidget({
   slots,
   isOnline,
   location,
+  isCorporate,
 }) {
   const [selectedDate, setSelectedDate] = useState(startOfToday());
   const [currentWeekStart, setCurrentWeekStart] = useState(startOfToday());
@@ -198,7 +199,7 @@ export default function BookingWidget({
             {availableSlots.map((slot) => (
               <Link
                 key={slot.$id}
-                href={`/book/${slot.$id}?duration=${duration}`}
+                href={`/book/${slot.$id}?duration=${duration}${isCorporate ? "&corporate=true" : ""}`}
                 className="group"
               >
                 <button className="w-full py-3 px-2 rounded-xl border border-gray-200 bg-white hover:border-secondary hover:bg-secondary/5 hover:text-secondary transition-all text-sm font-semibold text-gray-600 shadow-sm hover:shadow-md">

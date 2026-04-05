@@ -128,8 +128,13 @@ export async function handleBookingRequest(bookingId, action) {
     };
 
     if (action === "accept") {
+      let nextStatus = "awaiting_payment";
+      if (booking.is_corporate) {
+        nextStatus = "confirmed";
+      }
+
       await databases.updateDocument(DB_ID, BOOKINGS_COLLECTION, bookingId, {
-        status: "awaiting_payment",
+        status: nextStatus,
       });
 
       // 1. Google Sync (Safe Block)
@@ -351,6 +356,12 @@ export async function getTherapistDashboardData() {
   ]);
   const price = rateDocs.documents[0]?.price_inr || 0;
 
+  // Separate Corporate vs Retail bookings
+  const corporateBookings = monthBookings.documents.filter(b => b.is_corporate);
+  const retailBookings = monthBookings.documents.filter(b => !b.is_corporate);
+
+  const constCorporateRate = 500; // Hardcoded Corporate Payout Rate (₹500)
+  
   const enrichSimple = async (list) => {
     return await Promise.all(
       list.map(async (booking) => {
@@ -376,9 +387,12 @@ export async function getTherapistDashboardData() {
     verifications: await enrichSimple(verifications.documents),
     upcoming: enrichedUpcoming, // Uses the decrypted map above
     stats: {
-      earnings: monthBookings.total * price,
+      earnings: (retailBookings.length * price) + (corporateBookings.length * constCorporateRate),
+      retail_earnings: retailBookings.length * price,
+      corporate_earnings: corporateBookings.length * constCorporateRate,
       sessions: monthBookings.total,
       price_per_session: price,
+      corporate_sessions: corporateBookings.length
     },
     therapistProfile: await databases.getDocument(
       DB_ID,
@@ -494,5 +508,21 @@ export async function getClientHomework() {
     return homeworkList.filter(Boolean);
   } catch (error) {
     return [];
+  }
+}
+
+export async function toggleCorporateOptIn(optsIn) {
+  const session = await createSessionClient();
+  const user = await session.account.get();
+  const { databases } = await createAdminClient();
+  
+  try {
+     await databases.updateDocument(DB_ID, USERS_COLLECTION, user.$id, {
+        opts_in_corporate: optsIn
+     });
+     revalidatePath("/therapist/dashboard");
+     return { success: true };
+  } catch (error) {
+     return { error: error.message };
   }
 }

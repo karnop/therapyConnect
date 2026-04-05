@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getTherapistData, updateTherapistProfile } from "@/actions/therapist";
+import { toggleCorporateOptIn } from "@/actions/dashboard";
 import { getInvoiceSettings, updateInvoiceSettings } from "@/actions/invoice";
 import {
   Save,
@@ -43,6 +44,7 @@ export default function SettingsPage() {
 
   const [data, setData] = useState({ profile: {}, rates: [], avatarUrl: null });
   const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+  const [isCorporateOptIn, setIsCorporateOptIn] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
 
   const [invoiceForm, setInvoiceForm] = useState({
@@ -83,6 +85,7 @@ export default function SettingsPage() {
         setPreviewImage(avatarUrl);
         setMetroQuery(profile.metro_station || "");
         setIsGoogleConnected(!!profile.google_refresh_token);
+        setIsCorporateOptIn(!!profile.opts_in_corporate);
 
         setFormData((prev) => ({
           ...prev,
@@ -367,6 +370,38 @@ export default function SettingsPage() {
         <div
           className={activeTab === "practice" ? "block space-y-8" : "hidden"}
         >
+          {/* CORPORATE OPT-IN */}
+          <div className="bg-white p-6 md:p-8 rounded-3xl border border-emerald-100 bg-emerald-50/30 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-emerald-100 text-emerald-700 rounded-xl">
+                <Building2 size={24} />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-emerald-900">Corporate Care Provider</h2>
+                <p className="text-sm text-emerald-700 max-w-md mt-1">Accept bookings from B2B company pools at the firm&apos;s standardized ₹1500 retainer rate.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                setSaving(true);
+                const newVal = !isCorporateOptIn;
+                setIsCorporateOptIn(newVal);
+                const res = await toggleCorporateOptIn(newVal);
+                if (res?.error) {
+                  setError(res.error);
+                  setIsCorporateOptIn(!newVal);
+                } else {
+                  setSuccess(newVal ? "Opted into Corporate Care" : "Opted out of Corporate Care");
+                }
+                setSaving(false);
+              }}
+              className={`w-14 h-8 rounded-full p-1 transition-colors shrink-0 ${isCorporateOptIn ? 'bg-emerald-600' : 'bg-gray-300'}`}
+            >
+              <div className={`w-6 h-6 bg-white rounded-full shadow-sm transform transition-transform ${isCorporateOptIn ? 'translate-x-6' : 'translate-x-0'}`}></div>
+            </button>
+          </div>
+
           <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
               <div className="p-2 bg-green-50 text-green-600 rounded-lg">

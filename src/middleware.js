@@ -12,6 +12,7 @@ export async function middleware(request) {
     "/book",
     "/profile/edit",
     "/admin",
+    "/b2b",
   ];
 
   // 2. Define Auth Routes

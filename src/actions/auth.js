@@ -92,6 +92,10 @@ export async function login(formData) {
 
         if (profile.role === "therapist") {
           redirectTo = "/therapist/dashboard";
+        } else if (profile.role === "employee") {
+          redirectTo = "/b2b/employee/dashboard";
+        } else if (profile.role === "hr") {
+          redirectTo = "/b2b/hr/dashboard";
         } else {
           redirectTo = "/dashboard";
         }
@@ -161,4 +165,68 @@ export async function resetPassword(formData) {
       error: "Failed to reset password. The link may be invalid or expired.",
     };
   }
+}
+
+export async function registerCorporateEmployee(formData) {
+  const rawEmail = formData.get("email");
+  const email = rawEmail ? rawEmail.toString().trim() : "";
+  const password = formData.get("password");
+  const fullName = formData.get("fullName");
+  const phone = formData.get("phone");
+  const accessCode = formData.get("accessCode");
+
+  const { account, databases } = await createAdminClient();
+
+  try {
+    // 1. Validate Access Code
+    const { Query } = require("node-appwrite");
+    const companies = await databases.listDocuments(DB_ID, "companies", [
+      Query.equal("access_code", accessCode),
+      Query.limit(1)
+    ]);
+
+    if (companies.documents.length === 0) {
+      return { error: "Invalid access code", field: "accessCode" };
+    }
+
+    const company = companies.documents[0];
+    if (!company.is_active) {
+      return { error: "Company account is inactive", field: "accessCode" };
+    }
+
+    // 2. Create Auth Account
+    const userId = ID.unique();
+    await account.create(userId, email, password, fullName);
+
+    // 3. Login Immediately
+    const session = await account.createEmailPasswordSession(email, password);
+    cookies().set("appwrite-session", session.secret, {
+      path: "/",
+      httpOnly: true,
+      sameSite: "strict",
+      secure: true,
+    });
+
+    // 4. Create Employee Profile
+    await databases.createDocument(DB_ID, USERS_COLLECTION_ID, userId, {
+      user_id: userId,
+      role: "employee", // Changed from 'client' to 'employee'
+      full_name: fullName,
+      phone_number: phone,
+      is_verified: true, // Employees are inherently verified via the access code
+      company_id: company.$id
+    });
+
+  } catch (error) {
+    console.error("Corporate Signup Error:", error);
+    if (error.message.includes("email") || error.type === "user_invalid_email") {
+      return { error: "Invalid email address", field: "email" };
+    }
+    if (error.message.includes("password")) {
+      return { error: error.message, field: "password" };
+    }
+    return { error: error.message };
+  }
+
+  redirect("/b2b/employee/dashboard");
 }

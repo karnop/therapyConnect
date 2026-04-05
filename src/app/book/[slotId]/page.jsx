@@ -9,6 +9,7 @@ export default async function CheckoutPage({ params, searchParams }) {
   const { slotId } = params;
   // Get duration from URL (default to 60 if missing)
   const duration = parseInt(searchParams.duration) || 60;
+  const isCorporate = searchParams.corporate === "true";
 
   // 1. Verify User
   try {
@@ -39,6 +40,10 @@ export default async function CheckoutPage({ params, searchParams }) {
     const baseRate =
       rates.find((r) => r.duration_mins === 60)?.price_inr || 2000;
     price = Math.round(baseRate * (duration / 60));
+  }
+
+  if (isCorporate) {
+    price = 1500;
   }
 
   // 4. Double Booking Guard
@@ -139,6 +144,7 @@ export default async function CheckoutPage({ params, searchParams }) {
           price={price}
           therapist={therapist}
           duration={duration}
+          isCorporate={isCorporate}
         />
       </div>
     </div>

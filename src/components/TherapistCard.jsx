@@ -94,7 +94,7 @@ export default function TherapistCard({ data }) {
             <p className="text-xs text-gray-400">Per Session</p>
             <p className="font-bold text-lg text-primary">₹{data.price}</p>
           </div>
-          <Link href={`/profile/${data.$id}`}>
+          <Link href={data.isCorporateRate ? `/profile/${data.$id}?corporate=true` : `/profile/${data.$id}`}>
             <button className="bg-primary text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-800 transition-colors flex items-center gap-2">
               Book <ArrowRight size={16} />
             </button>

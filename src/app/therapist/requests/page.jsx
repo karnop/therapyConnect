@@ -46,6 +46,9 @@ export default function RequestsPage() {
       </div>
     );
 
+  const upcomingRequests = data.requests.filter(req => new Date(req.start_time) >= new Date());
+  const pastRequests = data.requests.filter(req => new Date(req.start_time) < new Date());
+
   return (
     <div className="pb-20">
       <div className="mb-8">
@@ -70,18 +73,18 @@ export default function RequestsPage() {
         </section>
       )}
 
-      <section className="animate-in slide-in-from-bottom-4">
+      <section className="animate-in slide-in-from-bottom-4 mb-10">
         <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-          <Inbox size={16} /> New Requests ({data.requests.length})
+          <Inbox size={16} /> New Requests ({upcomingRequests.length})
         </h2>
-        {data.requests.length > 0 ? (
+        {upcomingRequests.length > 0 ? (
           <div className="space-y-4">
-            {data.requests.map((req) => (
+            {upcomingRequests.map((req) => (
               <RequestCard key={req.$id} request={req} onSuccess={refresh} />
             ))}
           </div>
         ) : (
-          data.requests.length === 0 &&
+          upcomingRequests.length === 0 &&
           data.verifications.length === 0 && (
             <div className="bg-white p-16 rounded-3xl border-2 border-dashed border-gray-200 text-center flex flex-col items-center">
               <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4 text-gray-400">
@@ -93,6 +96,19 @@ export default function RequestsPage() {
           )
         )}
       </section>
+
+      {pastRequests.length > 0 && (
+        <section className="animate-in slide-in-from-bottom-4 opacity-75">
+          <h2 className="text-sm font-bold text-red-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+            <Calendar size={16} /> Expired Requests ({pastRequests.length})
+          </h2>
+          <div className="space-y-4">
+            {pastRequests.map((req) => (
+              <RequestCard key={req.$id} request={req} onSuccess={refresh} isExpired={true} />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
@@ -165,7 +181,7 @@ function VerificationCard({ booking, onSuccess }) {
 }
 
 // Updated RequestCard with Duration Badge
-function RequestCard({ request, onSuccess }) {
+function RequestCard({ request, onSuccess, isExpired = false }) {
   const [actionState, setActionState] = useState(null);
   const duration = differenceInMinutes(
     parseISO(request.end_time),
@@ -219,35 +235,48 @@ function RequestCard({ request, onSuccess }) {
             <span className="px-2 py-0.5 bg-gray-100 rounded text-xs font-medium uppercase tracking-wide">
               {request.mode}
             </span>
+            {request.is_corporate && (
+              <span className="px-2 py-0.5 bg-secondary/10 text-secondary border border-secondary/20 rounded text-xs font-bold uppercase tracking-wide">
+                Corporate B2B
+              </span>
+            )}
           </div>
         </div>
       </div>
 
       <div className="flex gap-3 w-full md:w-auto border-t md:border-0 pt-4 md:pt-0 border-gray-100">
-        <button
-          onClick={() => handleAction("decline")}
-          disabled={!!actionState}
-          className="flex-1 md:flex-none w-full md:w-auto px-5 py-2.5 border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-        >
-          {actionState === "declining" ? (
-            <Loader2 className="animate-spin" size={16} />
-          ) : (
-            <X size={16} />
-          )}{" "}
-          Decline
-        </button>
-        <button
-          onClick={() => handleAction("accept")}
-          disabled={!!actionState}
-          className="flex-1 md:flex-none w-full md:w-auto px-6 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-gray-800 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-primary/20 disabled:opacity-50"
-        >
-          {actionState === "accepting" ? (
-            <Loader2 className="animate-spin" size={16} />
-          ) : (
-            <Check size={16} />
-          )}{" "}
-          Accept
-        </button>
+        {!isExpired ? (
+          <>
+            <button
+              onClick={() => handleAction("decline")}
+              disabled={!!actionState}
+              className="flex-1 md:flex-none w-full md:w-auto px-5 py-2.5 border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {actionState === "declining" ? (
+                <Loader2 className="animate-spin" size={16} />
+              ) : (
+                <X size={16} />
+              )}{" "}
+              Decline
+            </button>
+            <button
+              onClick={() => handleAction("accept")}
+              disabled={!!actionState}
+              className="flex-1 md:flex-none w-full md:w-auto px-6 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-gray-800 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-primary/20 disabled:opacity-50"
+            >
+              {actionState === "accepting" ? (
+                <Loader2 className="animate-spin" size={16} />
+              ) : (
+                <Check size={16} />
+              )}{" "}
+              Accept
+            </button>
+          </>
+        ) : (
+          <div className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-400 text-sm font-bold w-full text-center">
+            Session Expired
+          </div>
+        )}
       </div>
     </div>
   );

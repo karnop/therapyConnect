@@ -40,6 +40,14 @@ export async function createBooking(formData) {
   const startSlotId = formData.get("slotId");
   const mode = formData.get("mode");
   const duration = parseInt(formData.get("duration") || "60"); // 30, 60, 90
+  const reqIsCorporate = formData.get("is_corporate") === "true";
+
+  let dbProfile = null;
+  try {
+    dbProfile = await databases.getDocument(DB_ID, USERS_COLLECTION, user.$id);
+  } catch (e) {
+    console.error("Failed to fetch user profile", e);
+  }
 
   try {
     // 1. Fetch the Starting Slot to get Context
@@ -111,16 +119,51 @@ export async function createBooking(formData) {
       ),
     );
 
-    // 5. Create Booking
+    // 5. Corporate Bypass Logic
+    let isCorporate = false;
+    let companyId = null;
+    let newStatus = "pending_approval";
+
+    if (reqIsCorporate) {
+       if (!dbProfile || !dbProfile.company_id) {
+           return { error: "Unauthorized: You are not eligible for corporate subsidies." };
+       }
+
+       // Ensure therapist actually participates in B2B
+       const therapistDoc = await databases.getDocument(DB_ID, USERS_COLLECTION, startSlot.therapist_id);
+       if (!therapistDoc.opts_in_corporate) {
+           return { error: "This therapist does not participate in the Corporate Care program." };
+       }
+
+       const company = await databases.getDocument(DB_ID, "companies", dbProfile.company_id);
+       const used = parseInt(company.used_pool_sessions || "0");
+       const total = parseInt(company.total_pool_sessions || "0");
+       
+       if (used >= total) {
+           return { error: "Company session pool exhausted. Please contact your HR." };
+       }
+       
+       isCorporate = true;
+       companyId = dbProfile.company_id;
+       newStatus = "pending_approval"; 
+       
+       await databases.updateDocument(DB_ID, "companies", company.$id, {
+           used_pool_sessions: (used + 1).toString()
+       });
+    }
+
+    // 6. Create Booking
     await databases.createDocument(DB_ID, BOOKINGS_COLLECTION, ID.unique(), {
       client_id: user.$id,
       therapist_id: startSlot.therapist_id,
       service_rate_id: `standard-${duration}`,
       start_time: startTime.toISOString(),
       end_time: endTime.toISOString(),
-      status: "pending_approval",
+      status: newStatus,
       mode: mode,
       otp_code: Math.floor(1000 + Math.random() * 9000).toString(),
+      is_corporate: isCorporate,
+      company_id: companyId
     });
 
     // --- EMAILS ---

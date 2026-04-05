@@ -25,17 +25,25 @@ const Navbar = ({ user }) => {
   const profileLink =
     role === "therapist"
       ? "/therapist/dashboard"
-      : "admin"
-        ? "/admin/dashboard"
-        : "/dashboard";
+      : role === "employee"
+        ? "/b2b/employee/dashboard"
+        : role === "hr"
+          ? "/b2b/hr/dashboard"
+          : role === "admin"
+            ? "/admin/dashboard"
+            : "/dashboard";
 
   // Where should the "Dashboard" text button go?
   const dashboardLink =
     role === "therapist"
       ? "/therapist/dashboard"
-      : "admin"
-        ? "/admin/dashboard"
-        : "/dashboard";
+      : role === "employee"
+        ? "/b2b/employee/dashboard"
+        : role === "hr"
+          ? "/b2b/hr/dashboard"
+          : role === "admin"
+            ? "/admin/dashboard"
+            : "/dashboard";
 
   return (
     <nav className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-gray-100 transition-all duration-300">
@@ -54,32 +62,46 @@ const Navbar = ({ user }) => {
           </div>
 
           {/* --- DESKTOP NAVIGATION --- */}
-          <div className="hidden md:flex gap-8">
-            {role !== "therapist" && (
-              <Link
-                href="/search"
-                className="text-sm font-medium text-primary hover:text-secondary transition-colors"
-              >
-                Find a Therapist
-              </Link>
+          <div className="hidden md:flex items-center gap-8">
+            {role === "employee" && (
+              <>
+                <Link
+                  href="/b2b/employee/dashboard"
+                  className="text-sm font-bold text-secondary hover:text-primary transition-colors bg-secondary/10 px-3 py-1.5 rounded-lg border border-secondary/20"
+                >
+                  Corporate Hub
+                </Link>
+                <Link
+                  href="/dashboard"
+                  className="text-sm font-medium text-primary hover:text-secondary transition-colors"
+                >
+                  Dashboard
+                </Link>
+                <Link
+                  href="/search"
+                  className="text-sm font-medium text-primary hover:text-secondary transition-colors"
+                >
+                  Find a Therapist
+                </Link>
+              </>
             )}
 
-            {/* Hide "For Therapists" if user is already a therapist */}
-            {role !== "therapist" && (
-              <Link
-                href="/for-therapists"
-                className="text-sm font-medium text-primary hover:text-secondary transition-colors"
-              >
-                For Therapists
-              </Link>
+            {role === "client" && (
+              <>
+                <Link
+                  href="/search"
+                  className="text-sm font-medium text-primary hover:text-secondary transition-colors"
+                >
+                  Find a Therapist
+                </Link>
+                <Link
+                  href="/about"
+                  className="text-sm font-medium text-primary hover:text-secondary transition-colors"
+                >
+                  How it Works
+                </Link>
+              </>
             )}
-
-            <Link
-              href="/about"
-              className="text-sm font-medium text-primary hover:text-secondary transition-colors"
-            >
-              How it Works
-            </Link>
           </div>
 
           {/* --- RIGHT SIDE (Auth + Mobile Toggle) --- */}
@@ -128,33 +150,57 @@ const Navbar = ({ user }) => {
       {isMenuOpen && (
         <div className="md:hidden absolute top-20 left-0 w-full bg-surface border-b border-gray-100 shadow-lg z-40">
           <div className="flex flex-col p-4 space-y-4 items-center pb-8">
-            {role !== "therapist" && (
-              <Link
-                href="/search"
-                onClick={() => setIsMenuOpen(false)}
-                className="text-lg font-medium text-primary hover:text-secondary"
-              >
-                Find a Therapist
-              </Link>
+            {role === "employee" && (
+              <>
+                <Link
+                  href="/b2b/employee/dashboard"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="text-lg font-bold text-secondary hover:text-primary"
+                >
+                  Corporate Hub
+                </Link>
+                <Link
+                  href="/dashboard"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="text-lg font-medium text-primary hover:text-secondary"
+                >
+                  Retail Dashboard
+                </Link>
+                <Link
+                  href="/search"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="text-lg font-medium text-primary hover:text-secondary"
+                >
+                  Find a Therapist
+                </Link>
+              </>
             )}
 
-            {role !== "therapist" && (
-              <Link
-                href="/for-therapists"
-                onClick={() => setIsMenuOpen(false)}
-                className="text-lg font-medium text-primary hover:text-secondary"
-              >
-                For Therapists
-              </Link>
+            {role === "client" && (
+              <>
+                <Link
+                  href="/search"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="text-lg font-medium text-primary hover:text-secondary"
+                >
+                  Find a Therapist
+                </Link>
+                <Link
+                  href="/for-therapists"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="text-lg font-medium text-primary hover:text-secondary"
+                >
+                  For Therapists
+                </Link>
+                <Link
+                  href="/about"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="text-lg font-medium text-primary hover:text-secondary"
+                >
+                  How it Works
+                </Link>
+              </>
             )}
-
-            <Link
-              href="/about"
-              onClick={() => setIsMenuOpen(false)}
-              className="text-lg font-medium text-primary hover:text-secondary"
-            >
-              How it Works
-            </Link>
 
             {user ? (
               <div className="flex flex-col gap-4 w-full px-4 pt-2">
@@ -163,7 +209,9 @@ const Navbar = ({ user }) => {
                     <LayoutDashboard size={18} />
                     {role === "therapist"
                       ? "Partner Dashboard"
-                      : "My Dashboard"}
+                      : role === "hr"
+                        ? "HR Dashboard"
+                        : "My Dashboard"}
                   </button>
                 </Link>
                 <button

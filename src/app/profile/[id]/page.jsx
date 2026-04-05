@@ -12,7 +12,7 @@ import {
 import Image from "next/image";
 import { notFound } from "next/navigation";
 
-export default async function TherapistProfilePage({ params }) {
+export default async function TherapistProfilePage({ params, searchParams }) {
   const { id } = params;
 
   // Parallel Data Fetching
@@ -206,6 +206,7 @@ export default async function TherapistProfilePage({ params }) {
               slots={slots}
               isOnline={isOnline}
               location={profile.clinic_address}
+              isCorporate={searchParams?.corporate === "true"}
             />
           </div>
         </div>

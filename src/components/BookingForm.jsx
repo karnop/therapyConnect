@@ -12,7 +12,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
-export default function BookingForm({ slotId, price, therapist, duration }) {
+export default function BookingForm({ slotId, price, therapist, duration, isCorporate = false }) {
   const hasOnline = !!therapist.meeting_link;
   const hasOffline = !!therapist.clinic_address;
 
@@ -48,6 +48,7 @@ export default function BookingForm({ slotId, price, therapist, duration }) {
       <input type="hidden" name="slotId" value={slotId} />
       <input type="hidden" name="mode" value={selectedMode} />
       <input type="hidden" name="duration" value={duration} />
+      <input type="hidden" name="is_corporate" value={isCorporate ? "true" : "false"} />
 
       <h2 className="text-xl font-bold text-primary mb-6">
         Select Session Mode
@@ -128,9 +129,18 @@ export default function BookingForm({ slotId, price, therapist, duration }) {
           <span>₹0</span>
         </div>
         <div className="h-px bg-gray-100 my-2"></div>
-        <div className="flex justify-between text-lg font-bold text-primary">
+        <div className="flex justify-between text-lg font-bold text-primary items-center">
           <span>Total to Pay Later</span>
-          <span>₹{price}</span>
+          {isCorporate ? (
+            <div className="text-blue-600 flex items-center">
+              ₹0 
+              <span className="ml-2 px-2 py-0.5 bg-blue-50 border border-blue-100 text-[10px] text-blue-600 uppercase tracking-wider rounded font-bold">
+                B2B Covered
+              </span>
+            </div>
+          ) : (
+            <span>₹{price}</span>
+          )}
         </div>
       </div>
 

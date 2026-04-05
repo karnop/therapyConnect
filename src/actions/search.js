@@ -27,9 +27,13 @@ export async function getTherapists(filters = {}) {
 
   // 2. Verified Filter (Loose check)
   // Checks for boolean true, string "true", or existing verified field
-  const verifiedTherapists = allTherapists.filter(
+  let verifiedTherapists = allTherapists.filter(
     (t) => t.is_verified === true || t.is_verified === "true",
   );
+
+  if (filters.corporate === "true") {
+      verifiedTherapists = verifiedTherapists.filter(t => t.opts_in_corporate === true);
+  }
 
   if (verifiedTherapists.length === 0) return [];
 
@@ -87,6 +91,13 @@ export async function getTherapists(filters = {}) {
       if (minPrice && price < parseInt(minPrice)) return null;
       if (maxPrice && price > parseInt(maxPrice)) return null;
 
+      // OVERRIDE FOR CORPORATE
+      let isCorporateRate = false;
+      if (filters.corporate === "true") {
+        price = 1500;
+        isCorporateRate = true;
+      }
+
       // --- FETCH: Next Slot ---
       let nextSlot = null;
       try {
@@ -118,6 +129,7 @@ export async function getTherapists(filters = {}) {
       return {
         ...therapist,
         price,
+        isCorporateRate,
         nextSlot,
         avatarUrl,
       };
