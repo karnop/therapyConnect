@@ -11,8 +11,11 @@ export default function EmployeeDashboard() {
   const [mood, setMood] = useState(5);
   const [burnout, setBurnout] = useState(5);
   const [reviewText, setReviewText] = useState("");
+  const [department, setDepartment] = useState("Unspecified");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+
+  const departments = ["Unspecified", "Engineering", "Sales", "Marketing", "HR", "Operations", "Finance", "Product", "Support"];
 
   useEffect(() => {
     async function load() {
@@ -34,7 +37,7 @@ export default function EmployeeDashboard() {
       return;
     }
     setIsSubmitting(true);
-    const res = await submitBurnoutLog(profileData.companyId, mood, burnout, reviewText);
+    const res = await submitBurnoutLog(profileData.companyId, mood, burnout, reviewText, department);
     setIsSubmitting(false);
     if (res.success) {
       setSubmitted(true);
@@ -145,8 +148,20 @@ export default function EmployeeDashboard() {
                     value={reviewText}
                     onChange={(e) => setReviewText(e.target.value)}
                     placeholder="Type whatever is on your mind. Vent, complain, or praise. It is completely anonymous."
-                    className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition resize-none placeholder:text-slate-400"
+                    className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition resize-none placeholder:text-slate-400 mb-6"
                   />
+
+                  {/* Department Dropdown */}
+                  <label className="block text-sm font-bold text-slate-700 mb-3">
+                    Optional: Your Department <span className="font-normal text-slate-500">(For aggregate trends)</span>
+                  </label>
+                  <select 
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
+                    className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-slate-800 shadow-sm focus:ring-2 focus:ring-secondary focus:outline-none"
+                  >
+                    {departments.map(dept => <option key={dept} value={dept}>{dept === "Unspecified" ? "Prefer not to say" : dept}</option>)}
+                  </select>
                 </div>
 
                 <button

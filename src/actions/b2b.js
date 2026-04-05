@@ -28,45 +28,45 @@ export async function submitDemoRequest(formData) {
   try {
     // 1. SAVE TO DATABASE (Our Bulletproof Fallback)
     try {
-        const { databases } = await createAdminClient();
-        await databases.createDocument(
-            DB_ID, 
-            B2B_LEADS_COLLECTION, 
-            ID.unique(), 
-            {
-                name: name,
-                email: email,
-                company_name: company,
-                team_size: size,
-                message: message,
-                status: "new" // To track in your admin dashboard later
-            }
-        );
-        console.log("✅ B2B Lead saved to database.");
+      const { databases } = await createAdminClient();
+      await databases.createDocument(
+        DB_ID,
+        B2B_LEADS_COLLECTION,
+        ID.unique(),
+        {
+          name: name,
+          email: email,
+          company_name: company,
+          team_size: size,
+          message: message,
+          status: "new" // To track in your admin dashboard later
+        }
+      );
+      console.log("✅ B2B Lead saved to database.");
     } catch (dbErr) {
-        // We don't throw here. If the collection doesn't exist yet, we just log it and move to email.
-        console.log("⚠️ Could not save lead to DB (Collection might not exist yet):", dbErr.message);
+      // We don't throw here. If the collection doesn't exist yet, we just log it and move to email.
+      console.log("⚠️ Could not save lead to DB (Collection might not exist yet):", dbErr.message);
     }
 
     // 2. SEND THE EMAIL NOTIFICATIONS
     if (sendEmail) {
-        try {
-            // A. Send alert to YOU (The Sales Team)
-            // Note: You will need to make sure your email template handles "NEW_B2B_LEAD"
-            await sendEmail("sales@therapyconnect.in", "NEW_B2B_LEAD", {
-                name, email, company, size, message
-            });
-            
-            // B. Send a professional auto-responder to the HR Director
-            await sendEmail(email, "B2B_DEMO_CONFIRMATION", { 
-                name, company 
-            });
-            console.log("✅ B2B Emails dispatched successfully.");
-        } catch (emailErr) {
-            console.error("❌ Email dispatch failed:", emailErr.message);
-            // We still return success to the user so they see the "Thank You" screen, 
-            // relying on the DB fallback we did in Step 1.
-        }
+      try {
+        // A. Send alert to YOU (The Sales Team)
+        // Note: You will need to make sure your email template handles "NEW_B2B_LEAD"
+        await sendEmail("communicate.manav@gmail.com", "NEW_B2B_LEAD", {
+          name, email, company, size, message
+        });
+
+        // B. Send a professional auto-responder to the HR Director
+        await sendEmail(email, "B2B_DEMO_CONFIRMATION", {
+          name, company
+        });
+        console.log("✅ B2B Emails dispatched successfully.");
+      } catch (emailErr) {
+        console.error("❌ Email dispatch failed:", emailErr.message);
+        // We still return success to the user so they see the "Thank You" screen, 
+        // relying on the DB fallback we did in Step 1.
+      }
     }
 
     return { success: true };
@@ -95,8 +95,8 @@ export async function validateAccessCode(code) {
       return { error: "Company account is not active" };
     }
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       companyId: company.$id,
       companyName: company.name,
       tier: company.tier
@@ -127,7 +127,7 @@ export async function getCorporateTherapists() {
 }
 
 // 3. Submit Anonymous Burnout Log (HIPAA compliant: no user_id)
-export async function submitBurnoutLog(companyId, moodScore, burnoutScore, reviewText) {
+export async function submitBurnoutLog(companyId, moodScore, burnoutScore, reviewText, department = "Unspecified") {
   const { databases } = await createAdminClient();
 
   try {
@@ -136,7 +136,8 @@ export async function submitBurnoutLog(companyId, moodScore, burnoutScore, revie
       company_id: companyId,
       mood_score: moodScore,
       burnout_score: burnoutScore,
-      review_text: reviewText
+      review_text: reviewText,
+      department: department
     });
 
     return { success: true };
@@ -153,7 +154,7 @@ export async function getHRDashboardStats(companyId) {
   try {
     // A. Fetch Company Details
     const company = await databases.getDocument(DB_ID, COMPANIES_COLLECTION, companyId);
-    
+
     // B. Fetch Anonymous Reviews for this company
     const reviewsList = await databases.listDocuments(DB_ID, REVIEWS_COLLECTION, [
       Query.equal("company_id", companyId),
@@ -162,22 +163,119 @@ export async function getHRDashboardStats(companyId) {
     ]);
 
     const reviews = reviewsList.documents;
-    
+
     // Calculate Averages
     let totalMood = 0;
     let totalBurnout = 0;
     const documentsText = [];
 
+    const departmentData = {};
+    const dayData = {
+      "Monday": { count: 0, burnout: 0, mood: 0 },
+      "Tuesday": { count: 0, burnout: 0, mood: 0 },
+      "Wednesday": { count: 0, burnout: 0, mood: 0 },
+      "Thursday": { count: 0, burnout: 0, mood: 0 },
+      "Friday": { count: 0, burnout: 0, mood: 0 },
+      "Saturday": { count: 0, burnout: 0, mood: 0 },
+      "Sunday": { count: 0, burnout: 0, mood: 0 }
+    };
+
+    // NEW PREPARED ANALYTICS
+    const resilienceDistribution = { safe: 0, moderate: 0, high_risk: 0 };
+    const scatterData = [];
+    const calendarHeatmap = {};
+
+    const Analyzer = natural.SentimentAnalyzer;
+    const stemmer = natural.PorterStemmer;
+    const analyzer = new Analyzer("English", stemmer, "afinn");
+    const tokenizer = new natural.WordTokenizer();
+    let totalSentiment = 0;
+    let sentimentCount = 0;
+
     reviews.forEach(review => {
-      totalMood += review.mood_score || 0;
-      totalBurnout += review.burnout_score || 0;
+      const md = review.mood_score || 0;
+      const bn = review.burnout_score || 0;
+      totalMood += md;
+      totalBurnout += bn;
+
+      const dept = review.department || "Unspecified";
+
+      // 1. Resilience Cohorts
+      if (bn >= 8) resilienceDistribution.high_risk++;
+      else if (bn >= 5) resilienceDistribution.moderate++;
+      else resilienceDistribution.safe++;
+
+      // 2. Scatter Plot
+      scatterData.push({ mood: md, burnout: bn, dept });
+
+      // 3. NLP Text Analysis
       if (review.review_text) {
         documentsText.push(review.review_text);
+        const tokens = tokenizer.tokenize(review.review_text);
+        const sentiment = analyzer.getSentiment(tokens);
+        if (!isNaN(sentiment)) {
+          totalSentiment += sentiment;
+          sentimentCount++;
+        }
+      }
+
+      // 4. Department Grouping
+      if (!departmentData[dept]) {
+        departmentData[dept] = { count: 0, burnoutTotal: 0, moodTotal: 0 };
+      }
+      departmentData[dept].count += 1;
+      departmentData[dept].burnoutTotal += bn;
+      departmentData[dept].moodTotal += md;
+
+      // 5. Day of Week Tracking & 6. Heatmap Dates
+      const dateStr = review.$createdAt;
+      if (dateStr) {
+        const dateObj = new Date(dateStr);
+        const daysStr = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        const dayStr = daysStr[dateObj.getDay()];
+        dayData[dayStr].count += 1;
+        dayData[dayStr].burnout += bn;
+        dayData[dayStr].mood += md;
+
+        const isoDate = dateStr.split("T")[0]; // e.g. "2026-04-05"
+        if (!calendarHeatmap[isoDate]) calendarHeatmap[isoDate] = { burnoutTotal: 0, count: 0 };
+        calendarHeatmap[isoDate].burnoutTotal += bn;
+        calendarHeatmap[isoDate].count += 1;
       }
     });
 
     const averageMood = reviews.length > 0 ? (totalMood / reviews.length).toFixed(1) : 0;
     const averageBurnout = reviews.length > 0 ? (totalBurnout / reviews.length).toFixed(1) : 0;
+    const averageSentiment = sentimentCount > 0 ? (totalSentiment / sentimentCount).toFixed(2) : 0;
+
+    const formattedCalendarHeatmap = Object.keys(calendarHeatmap).map(date => ({
+      date,
+      value: parseFloat((calendarHeatmap[date].burnoutTotal / calendarHeatmap[date].count).toFixed(1))
+    })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    const participationSpread = Object.keys(departmentData).map(k => ({
+      name: k, value: departmentData[k].count
+    }));
+
+    const departmentStats = Object.keys(departmentData).map(key => {
+      const d = departmentData[key];
+      return {
+        name: key,
+        burnout: parseFloat((d.burnoutTotal / d.count).toFixed(1)),
+        mood: parseFloat((d.moodTotal / d.count).toFixed(1)),
+        count: d.count
+      };
+    });
+
+    const daysArr = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    const dayStats = daysArr.map(day => {
+      const cd = dayData[day];
+      return {
+        name: day,
+        burnout: cd.count > 0 ? parseFloat((cd.burnout / cd.count).toFixed(1)) : 0,
+        mood: cd.count > 0 ? parseFloat((cd.mood / cd.count).toFixed(1)) : 0,
+      };
+    });
 
     // C. TF-IDF Calculation for Word Cloud
     const tfidf = new natural.TfIdf();
@@ -192,7 +290,7 @@ export async function getHRDashboardStats(companyId) {
         // Filter out stop words typically handled by natural, but just to be safe
         if (item.term.length > 3) {
           if (!wordScores[item.term]) {
-             wordScores[item.term] = 0;
+            wordScores[item.term] = 0;
           }
           wordScores[item.term] += item.tfidf;
         }
@@ -214,7 +312,14 @@ export async function getHRDashboardStats(companyId) {
         totalPoolSessions: parseInt(company.total_pool_sessions || "0"),
         averageMood,
         averageBurnout,
+        averageSentiment,
         totalReviews: reviews.length,
+        resilienceDistribution,
+        participationSpread,
+        scatterData,
+        calendarHeatmap: formattedCalendarHeatmap,
+        departmentStats,
+        dayStats,
         wordCloud: topWords
       }
     };
@@ -230,21 +335,21 @@ export async function getCurrentUserProfile() {
   try {
     const { account } = await createSessionClient();
     const user = await account.get();
-    
+
     const { databases } = await createAdminClient();
     const profile = await databases.getDocument(DB_ID, USERS_COLLECTION, user.$id);
-    
+
     let tier = null;
     let companyName = null;
-    
+
     if (profile.company_id) {
-       try {
-         const company = await databases.getDocument(DB_ID, COMPANIES_COLLECTION, profile.company_id);
-         tier = company.tier;
-         companyName = company.name;
-       } catch (e) {}
+      try {
+        const company = await databases.getDocument(DB_ID, COMPANIES_COLLECTION, profile.company_id);
+        tier = company.tier;
+        companyName = company.name;
+      } catch (e) { }
     }
-    
+
     return { success: true, profile, tier, companyName };
   } catch (error) {
     return { error: error.message };
