@@ -43,7 +43,6 @@ export default function BusinessLandingPage() {
           </div>
             </Link>
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-600">
-            <Link href="/for-business/pricing" className="hover:text-[#5A7A66] transition-colors">Pricing</Link>
             <Link href="/login" className="hover:text-[#5A7A66] transition-colors">Log in</Link>
             <Link href="/for-business/demo" className="bg-[#2D2D2D] text-white px-5 py-2.5 rounded-full hover:bg-black transition-all shadow-md">
               Book a Demo
@@ -86,8 +85,8 @@ export default function BusinessLandingPage() {
             <Link href="/for-business/demo" className="bg-[#5A7A66] hover:bg-[#4A6A56] text-white px-8 py-4 rounded-2xl font-bold text-center transition-all shadow-lg shadow-[#5A7A66]/20 flex items-center justify-center gap-2">
               Get Started <ArrowRight size={18} />
             </Link>
-            <Link href="/for-business/pricing" className="bg-white hover:bg-gray-50 text-[#2D2D2D] border border-gray-200 px-8 py-4 rounded-2xl font-bold text-center transition-all flex items-center justify-center">
-              View Pricing
+            <Link href="/for-business/demo" className="bg-white hover:bg-gray-50 text-[#2D2D2D] border border-gray-200 px-8 py-4 rounded-2xl font-bold text-center transition-all flex items-center justify-center">
+              See Demo
             </Link>
           </motion.div>
         </motion.div>
@@ -337,7 +336,7 @@ export default function BusinessLandingPage() {
               <h3 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">Enterprise Shield</h3>
               <p className="text-gray-400 mb-10 text-lg font-light leading-relaxed">Protect your company&apos;s liability while protecting your team&apos;s mental health.</p>
               
-              <Link href="/for-business/pricing" className="inline-flex items-center justify-center w-full bg-white text-black py-5 rounded-2xl font-bold text-lg hover:bg-gray-200 transition-colors shadow-[0_0_30px_rgba(255,255,255,0.1)] hover:shadow-[0_0_40px_rgba(255,255,255,0.2)]">
+              <Link href="/for-business/demo" className="inline-flex items-center justify-center w-full bg-white text-black py-5 rounded-2xl font-bold text-lg hover:bg-gray-200 transition-colors shadow-[0_0_30px_rgba(255,255,255,0.1)] hover:shadow-[0_0_40px_rgba(255,255,255,0.2)]">
                 View Enterprise Plan
               </Link>
             </div>
