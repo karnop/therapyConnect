@@ -23,7 +23,12 @@ import {
   Building2,
   Calendar as CalendarIcon, // ADDED
   Plug, // ADDED
+  QrCode,
+  Copy,
+  Download,
+  ExternalLink,
 } from "lucide-react";
+import QRCode from "qrcode";
 import Image from "next/image";
 import { SPECIALTIES_LIST, METRO_STATIONS } from "@/lib/constants";
 import {
@@ -71,6 +76,10 @@ export default function SettingsPage() {
   const [filteredMetros, setFilteredMetros] = useState([]);
   const [showMetroDropdown, setShowMetroDropdown] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Profile Sharing QR Code states
+  const [qrUrl, setQrUrl] = useState("");
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -130,6 +139,26 @@ export default function SettingsPage() {
       setError("Google connection failed or was cancelled.");
   }, [searchParams]);
 
+  useEffect(() => {
+    if (data.profile?.$id) {
+      const profileLink = `${window.location.origin}/profile/${data.profile.$id}`;
+      QRCode.toDataURL(
+        profileLink,
+        {
+          width: 300,
+          margin: 2,
+          color: {
+            dark: "#1E293B", // Slate-800
+            light: "#FFFFFF",
+          },
+        },
+        (err, url) => {
+          if (!err) setQrUrl(url);
+        }
+      );
+    }
+  }, [data.profile?.$id]);
+
   // Handlers
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -169,6 +198,26 @@ export default function SettingsPage() {
   const handleInvoiceChange = (e) => {
     const { name, value } = e.target;
     setInvoiceForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleCopyLink = () => {
+    if (data.profile?.$id) {
+      const profileLink = `${window.location.origin}/profile/${data.profile.$id}`;
+      navigator.clipboard.writeText(profileLink);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    }
+  };
+
+  const handleDownloadQR = () => {
+    if (qrUrl) {
+      const link = document.createElement("a");
+      link.href = qrUrl;
+      link.download = `dr_${data.profile?.full_name?.toLowerCase().replace(/\s+/g, "_") || "therapist"}_profile_qr.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   // Submit Logic
@@ -364,6 +413,100 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
+
+          {/* PROFILE SHARING & QR CODE CARD */}
+          {data.profile?.$id && (
+            <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-secondary/10 text-secondary rounded-xl">
+                  <QrCode size={20} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-primary">
+                    Profile Sharing & QR Code
+                  </h2>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Share your public booking profile directly with clients.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col md:flex-row gap-8 items-center md:items-start pt-2">
+                {/* QR Code Graphic Frame */}
+                <div className="relative group p-4 bg-gray-50/50 rounded-2xl border border-gray-100/80 flex flex-col items-center shrink-0">
+                  <div className="w-48 h-48 bg-white rounded-xl shadow-inner border border-gray-100 p-2 flex items-center justify-center relative overflow-hidden">
+                    {qrUrl ? (
+                      <Image
+                        src={qrUrl}
+                        alt="Profile QR Code"
+                        width={180}
+                        height={180}
+                        className="object-contain"
+                      />
+                    ) : (
+                      <div className="animate-pulse flex flex-col items-center justify-center gap-2 text-gray-300">
+                        <QrCode size={40} className="stroke-[1.5]" />
+                        <span className="text-[10px] font-medium">Generating...</span>
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-3">
+                    Scan to Book
+                  </span>
+                </div>
+
+                {/* Actions & Details */}
+                <div className="flex-1 w-full space-y-5 flex flex-col justify-center">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
+                      Your Public Booking URL
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        readOnly
+                        value={data.profile?.$id ? `${window.location.origin}/profile/${data.profile.$id}` : ""}
+                        className="flex-1 px-4 py-3 bg-gray-50/70 border border-gray-100 text-gray-500 rounded-xl text-sm font-medium outline-none select-all truncate"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCopyLink}
+                        className="px-4 bg-gray-50 border border-gray-200 hover:border-secondary hover:text-secondary rounded-xl transition-all flex items-center justify-center shrink-0 text-gray-500"
+                        title="Copy Link"
+                      >
+                        {copiedLink ? (
+                          <Check size={18} className="text-green-600 animate-in fade-in zoom-in duration-200" />
+                        ) : (
+                          <Copy size={18} />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3 pt-2">
+                    <button
+                      type="button"
+                      disabled={!qrUrl}
+                      onClick={handleDownloadQR}
+                      className="bg-secondary hover:bg-[#5A7A66] disabled:opacity-50 text-white font-semibold py-2.5 px-5 rounded-xl text-sm transition-all shadow-md shadow-secondary/10 flex items-center gap-2"
+                    >
+                      <Download size={16} />
+                      Download QR Code
+                    </button>
+
+                    <a
+                      href={`/profile/${data.profile.$id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-white border border-gray-200 hover:border-secondary hover:text-secondary text-gray-600 font-semibold py-2.5 px-5 rounded-xl text-sm transition-all shadow-sm flex items-center gap-2"
+                    >
+                      <ExternalLink size={16} />
+                      View Public Profile
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* TAB 2: PRACTICE */}
