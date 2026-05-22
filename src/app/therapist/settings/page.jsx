@@ -52,7 +52,7 @@ export default function SettingsPage() {
     rci: "",
     address: "",
     upi: "",
-    payment_instructions: "",
+    paymentInstructions: "",
   });
 
   const [formData, setFormData] = useState({
@@ -102,7 +102,7 @@ export default function SettingsPage() {
 
         setInvoiceForm((prev) => ({
           ...prev,
-          payment_instructions: profile.payment_instructions || "",
+          paymentInstructions: profile.payment_instructions || "",
         }));
       }
 
@@ -481,7 +481,7 @@ export default function SettingsPage() {
               <textarea
                 name="paymentInstructions"
                 rows={4}
-                value={invoiceForm.payment_instructions}
+                value={invoiceForm.paymentInstructions}
                 onChange={handleInvoiceChange}
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary resize-none"
               />
